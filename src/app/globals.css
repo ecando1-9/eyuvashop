@@ -1,26 +1,336 @@
 @import "tailwindcss";
 
+
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fffafb;
+  --foreground: #111827;
+  --primary: #1f2937;
+  --accent: #ff3e6c;
+  --accent-dark: #e02a55;
+  --accent-light: #fff0f4;
+  --muted: #6b7280;
+  --border: #f3e8eb;
+  --card: #ffffff;
+  --radius: 8px;
+  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.04);
+  --shadow-lift: 0 12px 35px rgba(255, 62, 108, 0.12);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 600px at 12% -10%, rgba(255, 62, 108, 0.08) 0%, rgba(255, 62, 108, 0) 55%),
+    radial-gradient(900px 480px at 92% -18%, rgba(20, 30, 50, 0.03) 0%, rgba(20, 30, 50, 0) 60%),
+    var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), 'Inter', 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  letter-spacing: -0.01em;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-poppins), var(--font-inter), 'Inter', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Focus styles */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 62, 108, 0.22);
+  color: #111827;
+}
+
+/* Swiper overrides */
+.swiper-pagination-bullet-active {
+  background: #ff3e6c !important;
+}
+
+.swiper-button-next,
+.swiper-button-prev {
+  color: #ff3e6c !important;
+}
+
+/* Line clamp utilities */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-pink {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 62, 108, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 62, 108, 0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+.animate-pulse-pink {
+  animation: pulse-pink 2s infinite;
+}
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #ff3e6c, #f42c5b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass morphism */
+.glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Badge shake animation */
+@keyframes badgePop {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.badge-pop {
+  animation: badgePop 0.3s ease;
+}
+
+/* Section titles */
+.section-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  position: relative;
+  display: inline-block;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 40px;
+  height: 3px;
+  background: #ff3e6c;
+  border-radius: 2px;
+}
+
+/* Toast z-index */
+.react-hot-toast {
+  z-index: 9999 !important;
+}
+
+/* Input styles */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+textarea,
+select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #111827;
+  background: white;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #ff3e6c;
+  box-shadow: 0 0 0 3px rgba(255, 62, 108, 0.12);
+}
+
+/* Rating stars */
+.star-filled {
+  color: #fbbf24;
+}
+
+.star-empty {
+  color: #d1d5db;
+}
+
+/* Price display */
+.price-current {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.price-original {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.price-discount {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
