@@ -1,4 +1,4 @@
-export default function AccountLayout({
+export default function MerchantLayout({
   children,
 }: {
   children: React.ReactNode;

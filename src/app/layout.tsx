@@ -1,41 +1,29 @@
 import type { Metadata } from 'next';
-import { Inter, Poppins } from 'next/font/google';
-import './globals.css';
-import { Toaster } from 'react-hot-toast';
-import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
+import { Outfit, Plus_Jakarta_Sans, Cormorant_Garamond } from 'next/font/google';
+import '../styles/globals.css';
 
-const inter = Inter({
+const outfit = Outfit({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800', '900'],
-  display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-outfit',
+  weight: ['400', '500', '600', '700', '800', '900'],
 });
 
-const poppins = Poppins({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
-  display: 'swap',
-  variable: '--font-poppins',
+  variable: '--font-jakarta',
+  weight: ['400', '500', '600', '700', '800'],
+});
+
+const cormorantGaramond = Cormorant_Garamond({
+  subsets: ['latin'],
+  variable: '--font-cormorant',
+  weight: ['700'],
+  style: ['italic', 'normal'],
 });
 
 export const metadata: Metadata = {
-  title: {
-    template: '%s | eYuvaShop',
-    default: 'eYuvaShop – Shop Smart, Live Better',
-  },
-  description:
-    'eYuvaShop is India\'s premium online shopping destination. Discover fashion, electronics, beauty, and more with fast delivery and easy returns.',
-  keywords: ['eYuvaShop', 'online shopping', 'India', 'fashion', 'electronics', 'beauty'],
-  openGraph: {
-    type: 'website',
-    siteName: 'eYuvaShop',
-    title: 'eYuvaShop – Shop Smart, Live Better',
-    description: 'India\'s premium online shopping destination.',
-  },
-  icons: {
-    icon: '/favicon.ico',
-  },
+  title: 'eYuvaShop | Fashion & Lifestyle Multi-Vendor Platform',
+  description: 'Premium Multi-Vendor Shopping Engine - Fashion, Lifestyle & Tech',
 };
 
 export default function RootLayout({
@@ -44,29 +32,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`}>
-      <body className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#1f2937',
-              color: '#fff',
-              borderRadius: '10px',
-              fontSize: '14px',
-              fontFamily: 'Inter, sans-serif',
-              padding: '12px 16px',
-            },
-            success: {
-              iconTheme: { primary: '#f97316', secondary: '#fff' },
-            },
-          }}
-        />
-      </body>
+    <html lang="en" className={`${outfit.variable} ${plusJakarta.variable} ${cormorantGaramond.variable}`}>
+      <body className="font-sans antialiased text-gray-900 bg-gray-50">{children}</body>
     </html>
   );
 }

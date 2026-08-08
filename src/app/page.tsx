@@ -1,119 +1,199 @@
-﻿import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
-import HeroBanner from '@/components/home/HeroBanner';
-import CategoriesSection from '@/components/home/CategoriesSection';
-import ProductRow from '@/components/home/ProductRow';
-import type { Banner, Category, Product } from '@/types';
-import { ShieldCheck, Truck, RefreshCcw, Headphones } from 'lucide-react';
+'use client';
 
-export const metadata: Metadata = {
-  title: 'eYuvaShop - Shop Smart, Live Better',
-  description: "India's premium online shopping destination. Discover fashion, electronics, beauty, and more.",
-};
+import { useState } from 'react';
+import { Header } from '@/components/common/Header';
+import { Footer } from '@/components/common/Footer';
+import { BottomNav } from '@/components/common/BottomNav';
+import { HeroCarousel } from '@/components/customer/HeroCarousel';
+import { ProductCard } from '@/components/customer/ProductCard';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { MOCK_BANNERS, MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_STORES } from '@/lib/constants/mockData';
+import { Product } from '@/types/database';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Star, ArrowRight, Sparkles, TrendingUp, Award, X } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
-async function getHomeData() {
-  try {
-    const supabase = await createClient();
-
-    const [bannersResult, categoriesResult, productsResult] = await Promise.all([
-      supabase.from('banners').select('*').eq('is_active', true).order('position').limit(5),
-      supabase.from('categories').select('*').order('position').limit(8),
-      supabase
-        .from('products')
-        .select('*, category:categories(id, name, slug)')
-        .eq('is_active', true)
-        .limit(50),
-    ]);
-
-    return {
-      banners: (bannersResult.data || []) as Banner[],
-      categories: (categoriesResult.data || []) as Category[],
-      products: (productsResult.data || []) as Product[],
-    };
-  } catch {
-    return { banners: [], categories: [], products: [] };
-  }
-}
-
-export default async function HomePage() {
-  const { banners, categories, products } = await getHomeData();
-
-  const trending = products.filter((p) => p.is_featured);
-  const bestSellers = products.filter((p) => p.is_bestseller);
-  const newArrivals = products.filter((p) => p.is_new);
-
-  const benefits = [
-    { icon: Truck, title: 'Fast Delivery', desc: 'Pan-India in 2-5 days' },
-    { icon: ShieldCheck, title: 'Secure Payments', desc: 'Trusted checkout options' },
-    { icon: RefreshCcw, title: 'Easy Returns', desc: '30-day return policy' },
-    { icon: Headphones, title: '24/7 Support', desc: 'Always here to help' },
-  ];
+export default function HomePage() {
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   return (
-    <div>
-      <HeroBanner />
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <Header />
 
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <span className="inline-block px-3 py-1 mb-4 bg-[#ff3e6c]/10 text-[#ff3e6c] text-[10px] font-bold uppercase tracking-[0.2em] rounded-full">
-              Why Choose Us
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 font-display mb-4">
-              Premium Shopping Experience
-            </h2>
-            <p className="text-slate-600 font-medium leading-relaxed">
-              We deliver authentic products with transparent pricing, fast shipping, and reliable support.
-            </p>
-          </div>
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {benefits.map((benefit, index) => (
-              <div
-                key={benefit.title}
-                className="group p-8 rounded-[2rem] bg-slate-50 hover:bg-white border border-slate-100 hover:border-[#ff3e6c]/20 hover:shadow-[0_20px_40px_rgba(255,62,108,0.08)] transition-all duration-500 text-center flex flex-col items-center hover:-translate-y-2"
-              >
-                <div className="w-16 h-16 rounded-full bg-white group-hover:bg-[#ff3e6c] text-[#ff3e6c] group-hover:text-white shadow-sm flex items-center justify-center transition-colors duration-500 mb-6">
-                  <benefit.icon size={24} strokeWidth={2} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-2">{benefit.title}</h3>
-                <p className="text-sm text-slate-500">{benefit.desc}</p>
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 space-y-12">
+        {/* Hero Carousel */}
+        {MOCK_BANNERS.length > 0 ? (
+          <HeroCarousel banners={MOCK_BANNERS} />
+        ) : (
+          <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 text-white min-h-[280px] md:min-h-[340px] flex items-center justify-center p-8 shadow-xl text-center border border-gray-800">
+            <div className="max-w-xl space-y-3">
+              <span className="bg-[#FF6B00] text-white text-[11px] font-black uppercase px-3 py-1 rounded-full tracking-wider shadow">
+                eYuvashop Marketplace
+              </span>
+              <h1 className="text-2xl md:text-4xl font-black tracking-tight">
+                Welcome to eYuvashop Platform
+              </h1>
+              <p className="text-gray-400 text-xs md:text-sm leading-relaxed">
+                Connect your Supabase database or register as a merchant to publish live banners, products, and categories.
+              </p>
+              <div className="pt-2 flex items-center justify-center gap-3">
+                <Link
+                  href="/merchant"
+                  className="inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all shadow-md"
+                >
+                  Become a Seller
+                </Link>
+                <Link
+                  href="/auth/login"
+                  className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all border border-gray-700"
+                >
+                  Customer Login
+                </Link>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </section>
+        )}
 
-      <CategoriesSection />
+        {/* Shop by Categories */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Shop by Category</h2>
+              <p className="text-xs text-gray-500">Explore curated collections across top departments</p>
+            </div>
+            {MOCK_CATEGORIES.length > 0 && (
+              <Link href="/categories" className="text-xs font-bold text-[#FF6B00] hover:underline flex items-center gap-1">
+                View All <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
 
-      <div className="bg-white">
-        <ProductRow
-          title="Trending Now"
-          subtitle="Hottest picks from our catalog"
-          products={trending.length > 0 ? trending : products.slice(0, 10)}
-          viewAllHref="/shop?sort=popular"
-          badge="TRENDING"
-        />
-      </div>
+          {MOCK_CATEGORIES.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+              {MOCK_CATEGORIES.map((cat) => (
+                <Link
+                  key={cat.id}
+                  href={`/category/${cat.slug}`}
+                  className="group bg-white p-4 rounded-2xl border border-gray-100 flex flex-col items-center text-center hover:shadow-lg hover:border-[#FF6B00]/30 transition-all duration-300"
+                >
+                  <div className="relative w-16 h-16 rounded-full overflow-hidden mb-3 bg-gray-100 group-hover:scale-110 transition-transform">
+                    {cat.image_url && <Image src={cat.image_url} alt={cat.name} fill className="object-cover" />}
+                  </div>
+                  <h3 className="font-bold text-xs text-gray-900 group-hover:text-[#FF6B00] transition-colors">{cat.name}</h3>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No Categories Available"
+              description="Categories will appear here once added by merchants or approved by platform admin."
+              icon="sparkles"
+              actionLabel="Add Category in Merchant Hub"
+              actionHref="/merchant"
+            />
+          )}
+        </section>
 
-      <div className="bg-[#F8FAFC]">
-        <ProductRow
-          title="Best Sellers"
-          subtitle="Our most loved products"
-          products={bestSellers.length > 0 ? bestSellers : products.slice(10, 20)}
-          viewAllHref="/shop?sort=popular"
-          badge="POPULAR"
-        />
-      </div>
+        {/* Featured Products */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[#FF6B00]" />
+              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Featured Products</h2>
+            </div>
+          </div>
 
-      <div className="bg-white">
-        <ProductRow
-          title="New Arrivals"
-          subtitle="Fresh products just added"
-          products={newArrivals.length > 0 ? newArrivals : products.slice(20, 30)}
-          viewAllHref="/shop?sort=newest"
-          badge="NEW"
-        />
-      </div>
+          {MOCK_PRODUCTS.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {MOCK_PRODUCTS.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onQuickView={(p) => setSelectedProduct(p)}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No Featured Products Available"
+              description="Your product catalog is empty. Merchants can list products directly from the Merchant Portal."
+              icon="product"
+              actionLabel="Create Product in Seller Hub"
+              actionHref="/merchant"
+            />
+          )}
+        </section>
+
+        {/* Featured Stores */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Featured Merchant Stores</h2>
+              <p className="text-xs text-gray-500">Buy directly from verified brand flagships</p>
+            </div>
+          </div>
+
+          {MOCK_STORES.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {MOCK_STORES.map((store) => (
+                <div key={store.id} className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  <div className="relative h-32 w-full bg-gray-200">
+                    {store.banner_url && <Image src={store.banner_url} alt={store.name} fill className="object-cover" />}
+                  </div>
+                  <div className="p-6 relative pt-0 flex flex-col justify-between">
+                    <div className="flex items-end justify-between -mt-10 mb-4">
+                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-md bg-white">
+                        {store.logo_url && <Image src={store.logo_url} alt={store.name} fill className="object-cover" />}
+                      </div>
+                      <Link
+                        href={`/store/${store.slug}`}
+                        className="bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-[#FF6B00] transition-colors"
+                      >
+                        Visit Store
+                      </Link>
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-gray-900">{store.name}</h3>
+                      <p className="text-xs text-gray-500 line-clamp-2 mt-1">{store.description}</p>
+                    </div>
+                    <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100 text-xs font-medium text-gray-600">
+                      <div className="flex items-center gap-1 text-amber-500">
+                        <Star className="w-4 h-4 fill-current" /> <span className="font-bold">{store.rating}</span>
+                      </div>
+                      <span>•</span>
+                      <span>{store.followers_count.toLocaleString()} Followers</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              title="No Merchant Stores Registered"
+              description="Approved merchant storefronts will be highlighted here once verified by platform admins."
+              icon="store"
+              actionLabel="Register New Merchant Store"
+              actionHref="/login"
+            />
+          )}
+        </section>
+
+        {/* Promotional Banner */}
+        <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#FF6B00] to-orange-600 p-8 md:p-12 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 max-w-xl">
+            <span className="bg-white/20 text-white text-xs font-black uppercase px-3 py-1 rounded-full">Multi-Vendor Enterprise Engine</span>
+            <h2 className="text-2xl md:text-4xl font-black tracking-tight">Scale Your Online Store with eYuvashop</h2>
+            <p className="text-xs md:text-sm text-orange-100">Directly sync your Supabase PostgreSQL database to manage inventory, sales analytics, and global customer orders.</p>
+          </div>
+          <Link href="/merchant" className="bg-white text-gray-900 font-extrabold text-sm px-6 py-3.5 rounded-full hover:bg-gray-100 transition-all shadow-lg whitespace-nowrap">
+            Open Seller Account
+          </Link>
+        </section>
+      </main>
+
+      <Footer />
+      <BottomNav />
     </div>
   );
 }

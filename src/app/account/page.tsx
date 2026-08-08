@@ -1,115 +1,121 @@
-import { createClient } from '@/lib/supabase/server';
+'use client';
+
+import { Header } from '@/components/common/Header';
+import { Footer } from '@/components/common/Footer';
+import { BottomNav } from '@/components/common/BottomNav';
 import Link from 'next/link';
-import { Package, Heart, MapPin, ShoppingCart, ArrowRight, Clock } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import type { Order } from '@/types';
+import { ShoppingBag, Heart, Package, MapPin, Ticket, Bell, Headphones, User, Settings, LogOut } from 'lucide-react';
 
-export default async function AccountDashboardPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  const [ordersResult, wishlistResult, addressResult] = await Promise.all([
-    supabase.from('orders').select('id, order_number, status, total, created_at').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
-    supabase.from('wishlist_items').select('id', { count: 'exact' }).eq('user_id', user!.id),
-    supabase.from('addresses').select('id', { count: 'exact' }).eq('user_id', user!.id),
-  ]);
-
-  const orders = (ordersResult.data || []) as Order[];
-  const wishlistCount = wishlistResult.count || 0;
-  const addressCount = addressResult.count || 0;
-
-  const statCards = [
-    { label: 'Total Orders', value: String(ordersResult.data?.length || 0), icon: Package, href: '/account/orders', color: 'blue' },
-    { label: 'Wishlist Items', value: String(wishlistCount), icon: Heart, href: '/account/wishlist', color: 'red' },
-    { label: 'Saved Addresses', value: String(addressCount), icon: MapPin, href: '/account/addresses', color: 'green' },
+export default function CustomerDashboard() {
+  const sidebarItems = [
+    { label: 'Dashboard Overview', icon: User, active: true },
+    { label: 'Orders & Tracking', icon: Package },
+    { label: 'Wishlist Items', icon: Heart },
+    { label: 'Cart Items', icon: ShoppingBag },
+    { label: 'Saved Addresses', icon: MapPin },
+    { label: 'Coupons & Offers', icon: Ticket },
+    { label: 'Notifications', icon: Bell },
+    { label: 'Support Tickets', icon: Headphones },
+    { label: 'Account Settings', icon: Settings },
   ];
 
-  const statusColors: Record<string, string> = {
-    pending: 'bg-amber-50 text-amber-700',
-    confirmed: 'bg-blue-50 text-blue-700',
-    packed: 'bg-purple-50 text-purple-700',
-    shipped: 'bg-indigo-50 text-indigo-700',
-    delivered: 'bg-green-50 text-green-700',
-    cancelled: 'bg-red-50 text-red-700',
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Greeting */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-3xl p-6 text-white">
-        <h1 className="text-xl font-black mb-1">Welcome back! 👋</h1>
-        <p className="text-orange-100 text-sm">Manage your orders, wishlist, and account settings here.</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+      <Header />
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {statCards.map((card) => (
-          <Link
-            key={card.label}
-            href={card.href}
-            className="bg-white rounded-2xl border border-gray-100 p-4 hover:border-orange-200 hover:shadow-md transition-all text-center group"
-          >
-            <card.icon size={24} className={`mx-auto mb-2 ${card.color === 'blue' ? 'text-blue-400' : card.color === 'red' ? 'text-red-400' : 'text-green-400'}`} />
-            <p className="text-2xl font-black text-gray-900">{card.value}</p>
-            <p className="text-xs text-gray-500 group-hover:text-orange-500 transition-colors">{card.label}</p>
-          </Link>
-        ))}
-      </div>
+      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Sidebar Navigation */}
+          <aside className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm h-fit space-y-6">
+            <div className="flex items-center gap-3 pb-6 border-b border-gray-100">
+              <div className="w-12 h-12 bg-[#FF6B00] text-white rounded-2xl flex items-center justify-center font-black text-xl shadow">
+                JD
+              </div>
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-sm">John Doe</h3>
+                <p className="text-xs text-gray-400">john.doe@example.com</p>
+              </div>
+            </div>
 
-      {/* Recent Orders */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <Clock size={16} className="text-orange-500" />
-            Recent Orders
-          </h2>
-          <Link href="/account/orders" className="text-xs text-orange-500 font-semibold hover:text-orange-700 flex items-center gap-1">
-            View All <ArrowRight size={12} />
-          </Link>
-        </div>
-        {orders.length === 0 ? (
-          <div className="text-center py-12">
-            <ShoppingCart size={36} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-500 mb-4">No orders yet</p>
-            <Link href="/shop" className="text-sm font-semibold text-orange-500 hover:text-orange-700">
-              Start Shopping →
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {orders.map((order) => (
+            <nav className="space-y-1">
+              {sidebarItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.label}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all ${
+                      item.active
+                        ? 'bg-[#FF6B00] text-white shadow-md'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" /> {item.label}
+                  </button>
+                );
+              })}
               <Link
-                key={order.id}
-                href={`/account/orders/${order.id}`}
-                className="flex items-center justify-between px-5 py-3.5 hover:bg-orange-50 transition-colors"
+                href="/auth/login"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold text-red-500 hover:bg-red-50 transition-all mt-4"
               >
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">#{order.order_number}</p>
-                  <p className="text-xs text-gray-500">{formatDate(order.created_at)}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${statusColors[order.status] || 'bg-gray-50 text-gray-600'}`}>
-                    {order.status}
-                  </span>
-                  <span className="text-sm font-bold text-gray-900">{formatCurrency(order.total)}</span>
-                </div>
+                <LogOut className="w-4 h-4" /> Logout Account
               </Link>
-            ))}
-          </div>
-        )}
-      </div>
+            </nav>
+          </aside>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-4">
-        <Link href="/shop" className="bg-orange-50 border border-orange-100 rounded-2xl p-4 hover:bg-orange-100 transition-colors flex items-center gap-3">
-          <ShoppingCart size={20} className="text-orange-500" />
-          <span className="text-sm font-semibold text-orange-700">Continue Shopping</span>
-        </Link>
-        <Link href="/track-order" className="bg-blue-50 border border-blue-100 rounded-2xl p-4 hover:bg-blue-100 transition-colors flex items-center gap-3">
-          <Package size={20} className="text-blue-500" />
-          <span className="text-sm font-semibold text-blue-700">Track Order</span>
-        </Link>
-      </div>
+          {/* Main Dashboard Overview */}
+          <div className="md:col-span-3 space-y-8">
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                <p className="text-xs text-gray-400 font-medium">Total Orders</p>
+                <h4 className="text-2xl font-black text-gray-900 mt-1">12</h4>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                <p className="text-xs text-gray-400 font-medium">Pending Orders</p>
+                <h4 className="text-2xl font-black text-[#FF6B00] mt-1">1</h4>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                <p className="text-xs text-gray-400 font-medium">Wishlist Items</p>
+                <h4 className="text-2xl font-black text-gray-900 mt-1">4</h4>
+              </div>
+              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+                <p className="text-xs text-gray-400 font-medium">Coupons Saved</p>
+                <h4 className="text-2xl font-black text-emerald-600 mt-1">3</h4>
+              </div>
+            </div>
+
+            {/* Recent Orders Section */}
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-extrabold text-lg text-gray-900">Recent Orders</h3>
+                <a href="#" className="text-xs font-bold text-[#FF6B00] hover:underline">View All Orders</a>
+              </div>
+
+              <div className="border border-gray-100 rounded-2xl p-4 space-y-3">
+                <div className="flex justify-between items-center text-xs pb-3 border-b border-gray-100">
+                  <div>
+                    <span className="text-gray-400">Order ID:</span> <span className="font-bold text-gray-900">#ORD-94820</span>
+                  </div>
+                  <span className="bg-amber-50 text-amber-600 font-bold px-2.5 py-1 rounded-full">In Transit</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-bold text-sm text-gray-900">Apple iPhone 15 Pro Max</h4>
+                    <p className="text-xs text-gray-400">Qty: 1 • Seller: Apple Flagship Store</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-black text-sm text-gray-900">₹156,900</div>
+                    <p className="text-[11px] text-gray-400">Placed on Aug 02, 2026</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <Footer />
+      <BottomNav />
     </div>
   );
 }
