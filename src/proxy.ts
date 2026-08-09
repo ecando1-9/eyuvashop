@@ -8,15 +8,16 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
+  const isDeletedUser = user?.user_metadata?.is_deleted === true;
 
-  // Protect account routes — redirect to /login (the (auth) route group)
-  if (pathname.startsWith('/account') && !user) {
+  // Protect account routes — redirect to /login
+  if (pathname.startsWith('/account') && (!user || isDeletedUser)) {
     return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
   }
 
   // Protect admin routes
   if (pathname.startsWith('/admin')) {
-    if (!user) {
+    if (!user || isDeletedUser) {
       return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
     }
 
@@ -32,12 +33,12 @@ export async function proxy(request: NextRequest) {
   }
 
   // Protect merchant routes
-  if (pathname.startsWith('/merchant') && !user) {
+  if (pathname.startsWith('/merchant') && (!user || isDeletedUser)) {
     return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
   }
 
-  // Redirect logged-in users away from auth pages
-  if (user && (pathname === '/login' || pathname === '/signup')) {
+  // Redirect active logged-in users away from auth pages
+  if (user && !isDeletedUser && (pathname === '/login' || pathname === '/signup')) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 

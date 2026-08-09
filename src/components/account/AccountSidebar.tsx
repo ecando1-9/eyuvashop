@@ -27,9 +27,13 @@ const navItems = [
   { label: 'Settings', href: '/account/settings', icon: Settings },
 ];
 
+import { useState } from 'react';
+import { SignOutModal } from '@/components/common/SignOutModal';
+
 export function AccountSidebar() {
   const pathname = usePathname();
   const { user, profile, unreadNotifications, signOut } = useAuth();
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   const userInitials = profile?.full_name
     ? profile.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
@@ -47,79 +51,90 @@ export function AccountSidebar() {
     : null;
 
   return (
-    <aside className="bg-white rounded-2xl border border-gray-100 shadow-sm h-fit overflow-hidden">
-      {/* Profile Section */}
-      <div className="p-5 bg-gradient-to-br from-[#FF6B00]/5 to-orange-50/30 border-b border-gray-100">
-        <div className="flex items-center gap-3">
-          {profile?.avatar_url ? (
-            <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md">
-              <Image
-                src={profile.avatar_url}
-                alt={profile.full_name || 'User'}
-                fill
-                unoptimized
-                className="object-cover"
-              />
-            </div>
-          ) : (
-            <div className="w-14 h-14 rounded-2xl bg-[#FF6B00] text-white flex items-center justify-center font-black text-xl shadow-md flex-shrink-0">
-              {userInitials}
-            </div>
-          )}
-          <div className="min-w-0">
-            <h3 className="font-extrabold text-gray-900 text-sm truncate">
-              {profile?.full_name || user?.email?.split('@')[0] || 'User'}
-            </h3>
-            <p className="text-xs text-gray-400 truncate">{user?.email}</p>
-            <div className="flex items-center gap-1 mt-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-              <span className="text-[11px] text-emerald-600 font-semibold">Verified</span>
-              {memberSince && (
-                <span className="text-[11px] text-gray-400 ml-1 truncate">· Since {memberSince}</span>
-              )}
+    <>
+      <aside className="bg-white rounded-2xl border border-gray-100 shadow-sm h-fit overflow-hidden">
+        {/* Profile Section */}
+        <div className="p-5 bg-gradient-to-br from-[#FF6B00]/5 to-orange-50/30 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            {profile?.avatar_url ? (
+              <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md">
+                <Image
+                  src={profile.avatar_url}
+                  alt={profile.full_name || 'User'}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
+            ) : (
+              <div className="w-14 h-14 rounded-2xl bg-[#FF6B00] text-white flex items-center justify-center font-black text-xl shadow-md flex-shrink-0">
+                {userInitials}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h3 className="font-extrabold text-gray-900 text-sm truncate">
+                {profile?.full_name || user?.email?.split('@')[0] || 'User'}
+              </h3>
+              <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                <span className="text-[11px] text-emerald-600 font-semibold">Verified</span>
+                {memberSince && (
+                  <span className="text-[11px] text-gray-400 ml-1 truncate">· Since {memberSince}</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Navigation */}
-      <nav className="p-3 space-y-0.5">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group ${
-                active
-                  ? 'bg-[#FF6B00] text-white shadow-sm'
-                  : 'text-gray-600 hover:bg-orange-50 hover:text-[#FF6B00]'
-              }`}
+        {/* Navigation */}
+        <nav className="p-3 space-y-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group ${
+                  active
+                    ? 'bg-[#FF6B00] text-white shadow-sm'
+                    : 'text-gray-600 hover:bg-orange-50 hover:text-[#FF6B00]'
+                }`}
+              >
+                <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-white' : 'text-gray-400 group-hover:text-[#FF6B00]'}`} />
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.href === '/account/notifications' && unreadNotifications > 0 && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    active ? 'bg-white/30 text-white' : 'bg-[#FF6B00] text-white'
+                  }`}>
+                    {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+
+          <div className="pt-2 border-t border-gray-100 mt-2">
+            <button
+              onClick={() => setShowSignOutModal(true)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-50 transition-all duration-150"
             >
-              <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-white' : 'text-gray-400 group-hover:text-[#FF6B00]'}`} />
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.href === '/account/notifications' && unreadNotifications > 0 && (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                  active ? 'bg-white/30 text-white' : 'bg-[#FF6B00] text-white'
-                }`}>
-                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                </span>
-              )}
-            </Link>
-          );
-        })}
+              <LogOut className="w-4 h-4 flex-shrink-0" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </nav>
+      </aside>
 
-        <div className="pt-2 border-t border-gray-100 mt-2">
-          <button
-            onClick={signOut}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-50 transition-all duration-150"
-          >
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </nav>
-    </aside>
+      <SignOutModal
+        isOpen={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={async () => {
+          setShowSignOutModal(false);
+          await signOut();
+        }}
+      />
+    </>
   );
 }

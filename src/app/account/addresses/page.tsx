@@ -358,39 +358,39 @@ export default function AddressesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 sm:col-span-1">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Full Name *</label>
-                  <input className={inputClass('full_name')} value={form.full_name} onChange={(e) => f('full_name', e.target.value)} placeholder="Yuva Kiran" />
+                  <input className={inputClass('full_name')} maxLength={70} value={form.full_name} onChange={(e) => f('full_name', e.target.value)} placeholder="Yuva Kiran" />
                   {formErrors.full_name && <p className="text-xs text-red-500 mt-1">{formErrors.full_name}</p>}
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Mobile Number *</label>
-                  <input className={inputClass('phone')} value={form.phone} onChange={(e) => f('phone', e.target.value)} placeholder="9XXXXXXXXX" maxLength={10} />
+                  <input className={inputClass('phone')} maxLength={12} value={form.phone} onChange={(e) => f('phone', e.target.value)} placeholder="9XXXXXXXXX" />
                   {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 1 *</label>
-                  <input className={inputClass('address_line1')} value={form.address_line1} onChange={(e) => f('address_line1', e.target.value)} placeholder="House No, Building, Street" />
+                  <input className={inputClass('address_line1')} maxLength={120} value={form.address_line1} onChange={(e) => f('address_line1', e.target.value)} placeholder="House No, Building, Street" />
                   {formErrors.address_line1 && <p className="text-xs text-red-500 mt-1">{formErrors.address_line1}</p>}
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 2</label>
-                  <input className={inputClass('address_line2')} value={form.address_line2} onChange={(e) => f('address_line2', e.target.value)} placeholder="Apartment, Floor (optional)" />
+                  <input className={inputClass('address_line2')} maxLength={120} value={form.address_line2} onChange={(e) => f('address_line2', e.target.value)} placeholder="Apartment, Floor (optional)" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Area / Locality</label>
-                  <input className={inputClass('area')} value={form.area} onChange={(e) => f('area', e.target.value)} placeholder="Colony / Locality" />
+                  <input className={inputClass('area')} maxLength={80} value={form.area} onChange={(e) => f('area', e.target.value)} placeholder="Colony / Locality" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Landmark</label>
-                  <input className={inputClass('landmark')} value={form.landmark} onChange={(e) => f('landmark', e.target.value)} placeholder="Near hospital..." />
+                  <input className={inputClass('landmark')} maxLength={80} value={form.landmark} onChange={(e) => f('landmark', e.target.value)} placeholder="Near hospital..." />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-700 mb-1 block">City *</label>
-                  <input className={inputClass('city')} value={form.city} onChange={(e) => f('city', e.target.value)} placeholder="Hyderabad" />
+                  <input className={inputClass('city')} maxLength={50} value={form.city} onChange={(e) => f('city', e.target.value)} placeholder="Hyderabad" />
                   {formErrors.city && <p className="text-xs text-red-500 mt-1">{formErrors.city}</p>}
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-700 mb-1 block">PIN Code *</label>
-                  <input className={inputClass('postal_code')} value={form.postal_code} onChange={(e) => f('postal_code', e.target.value)} placeholder="500001" maxLength={6} />
+                  <input className={inputClass('postal_code')} maxLength={6} value={form.postal_code} onChange={(e) => f('postal_code', e.target.value)} placeholder="500001" />
                   {formErrors.postal_code && <p className="text-xs text-red-500 mt-1">{formErrors.postal_code}</p>}
                 </div>
                 <div className="col-span-2">

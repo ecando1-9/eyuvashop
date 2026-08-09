@@ -72,39 +72,59 @@ export function useAuth(): UseAuthReturn {
     let mounted = true;
 
     const initAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user && mounted) {
-        const { profile, unreadNotifications } = await fetchProfile(session.user.id);
-        if (mounted) {
-          setState({
+        if (session?.user && mounted) {
+          // 1. Immediately reveal user & stop loading state for 0ms visual delay
+          setState((prev) => ({
+            ...prev,
             user: session.user,
-            profile,
             loading: false,
-            unreadNotifications,
+          }));
+
+          // 2. Fetch profile & notifications asynchronously in background
+          fetchProfile(session.user.id).then(({ profile, unreadNotifications }) => {
+            if (mounted) {
+              setState((prev) => ({
+                ...prev,
+                profile,
+                unreadNotifications,
+              }));
+            }
           });
+        } else if (mounted) {
+          setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
         }
-      } else if (mounted) {
-        setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
+      } catch {
+        if (mounted) {
+          setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
+        }
       }
     };
 
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return;
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          const { profile, unreadNotifications } = await fetchProfile(session.user.id);
-          if (mounted) {
-            setState({
-              user: session.user,
-              profile,
-              loading: false,
-              unreadNotifications,
-            });
-          }
+        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
+          setState((prev) => ({
+            ...prev,
+            user: session.user,
+            loading: false,
+          }));
+
+          fetchProfile(session.user.id).then(({ profile, unreadNotifications }) => {
+            if (mounted) {
+              setState((prev) => ({
+                ...prev,
+                profile,
+                unreadNotifications,
+              }));
+            }
+          });
         } else if (event === 'SIGNED_OUT') {
           if (mounted) {
             setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });

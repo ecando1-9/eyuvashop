@@ -11,11 +11,13 @@ import {
 import { useCartStore } from '@/hooks/useCartStore';
 import { useWishlistStore } from '@/hooks/useWishlistStore';
 import { useAuth } from '@/hooks/useAuth';
+import { SignOutModal } from '@/components/common/SignOutModal';
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
@@ -147,101 +149,116 @@ export function Header() {
 
           {/* User Account — Auth Aware */}
           {!mounted || loading ? (
-            <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
+            <Link
+              href="/login"
+              className="p-2 text-gray-600 hover:text-[#FF6B00] rounded-full hover:bg-gray-50 transition-colors"
+              aria-label="User Account"
+            >
+              <User className="w-5 h-5" />
+            </Link>
           ) : user ? (
-            /* Logged In — User Dropdown */
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full pl-1 pr-3 py-1 transition-colors group"
-                aria-label="User menu"
-                aria-expanded={userMenuOpen}
-              >
-                {profile?.avatar_url ? (
-                  <Image
-                    src={profile.avatar_url}
-                    alt={profile.full_name || 'User'}
-                    width={32}
-                    height={32}
-                    className="rounded-full object-cover w-8 h-8 flex-shrink-0"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {userInitials}
+            <>
+              {/* Logged In — User Dropdown */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full pl-1 pr-3 py-1 transition-colors group"
+                  aria-label="User menu"
+                  aria-expanded={userMenuOpen}
+                >
+                  {profile?.avatar_url ? (
+                    <Image
+                      src={profile.avatar_url}
+                      alt={profile.full_name || 'User'}
+                      width={32}
+                      height={32}
+                      className="rounded-full object-cover w-8 h-8 flex-shrink-0"
+                      unoptimized
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center font-extrabold text-xs flex-shrink-0">
+                      {userInitials}
+                    </div>
+                  )}
+                  <span className="text-xs font-extrabold text-gray-800 hidden md:inline truncate max-w-[100px]">
+                    {profile?.full_name?.split(' ')[0] || user.email?.split('@')[0]}
+                  </span>
+                </button>
+
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="px-4 py-3 border-b border-gray-100">
+                      <p className="text-sm font-bold text-gray-900 truncate">{profile?.full_name || 'User'}</p>
+                      <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    </div>
+
+                    <div className="py-1">
+                      <Link
+                        href="/account"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <User className="w-4 h-4" /> My Account
+                      </Link>
+                      <Link
+                        href="/account/orders"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <Package className="w-4 h-4" /> My Orders
+                      </Link>
+                      <Link
+                        href="/account/wishlist"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <Heart className="w-4 h-4" /> Wishlist
+                      </Link>
+                      <Link
+                        href="/account/addresses"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <MapPin className="w-4 h-4" /> Saved Addresses
+                      </Link>
+                      <Link
+                        href="/account/settings"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <Settings className="w-4 h-4" /> Settings
+                      </Link>
+                      <Link
+                        href="/account/security"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                      >
+                        <Shield className="w-4 h-4" /> Security
+                      </Link>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-1">
+                      <button
+                        onClick={() => { setUserMenuOpen(false); setShowSignOutModal(true); }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" /> Sign Out
+                      </button>
+                    </div>
                   </div>
                 )}
-                <span className="text-xs font-semibold text-gray-700 max-w-[80px] truncate hidden sm:inline">
-                  {profile?.full_name?.split(' ')[0] || 'Account'}
-                </span>
-                <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
+              </div>
 
-              {/* Dropdown Menu */}
-              {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  {/* User Info Header */}
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-bold text-gray-900 truncate">{profile?.full_name || 'User'}</p>
-                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                  </div>
-
-                  <div className="py-1">
-                    <Link
-                      href="/account"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <User className="w-4 h-4" /> My Account
-                    </Link>
-                    <Link
-                      href="/account/orders"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <Package className="w-4 h-4" /> My Orders
-                    </Link>
-                    <Link
-                      href="/account/wishlist"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <Heart className="w-4 h-4" /> Wishlist
-                    </Link>
-                    <Link
-                      href="/account/addresses"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <MapPin className="w-4 h-4" /> Saved Addresses
-                    </Link>
-                    <Link
-                      href="/account/settings"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <Settings className="w-4 h-4" /> Settings
-                    </Link>
-                    <Link
-                      href="/account/security"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
-                    >
-                      <Shield className="w-4 h-4" /> Security
-                    </Link>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-1">
-                    <button
-                      onClick={() => { setUserMenuOpen(false); signOut(); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <LogOut className="w-4 h-4" /> Sign Out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              <SignOutModal
+                isOpen={showSignOutModal}
+                onClose={() => setShowSignOutModal(false)}
+                onConfirm={async () => {
+                  setShowSignOutModal(false);
+                  await signOut();
+                }}
+              />
+            </>
           ) : (
             /* Not Logged In */
             <Link

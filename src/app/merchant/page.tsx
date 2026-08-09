@@ -1,18 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search, Clock, AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { useAuth } from '@/hooks/useAuth';
+import { createClient } from '@/lib/supabase/client';
 
 const LOGO_URL = "https://res.cloudinary.com/dw9oeeyt3/image/upload/v1785690896/Thank_you_sticker_design_with_branding_xgab7m.png";
 
+import { SignOutModal } from '@/components/common/SignOutModal';
+
 export default function MerchantDashboard() {
+  const { user, profile, signOut } = useAuth();
   const [orders] = useState<any[]>([]);
   const [products] = useState<any[]>([]);
-  const merchantName = "eYuvashop Merchant";
+  const [businessName, setBusinessName] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function loadMerchantData() {
+      if (!user) return;
+      try {
+        const { data } = await supabase
+          .from('merchant_profiles')
+          .select('business_name, verification_status')
+          .eq('user_id', user.id)
+          .single();
+        if (data) {
+          if (data.business_name) setBusinessName(data.business_name);
+          if (data.verification_status) setVerificationStatus(data.verification_status as any);
+        }
+      } catch {
+        // Fallback to defaults
+      }
+    }
+    loadMerchantData();
+  }, [user, supabase]);
+
+  const merchantName = businessName || profile?.full_name || user?.email?.split('@')[0] || "Merchant Store";
 
   const sidebarNav = [
     { label: 'Dashboard', icon: LayoutDashboard, active: true },
@@ -70,9 +100,18 @@ export default function MerchantDashboard() {
           </nav>
         </div>
 
-        <Link href="/login" className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-colors">
+        <button onClick={() => setShowSignOutModal(true)} className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-colors w-full text-left">
           <LogOut className="w-4 h-4" /> Exit Seller Hub
-        </Link>
+        </button>
+
+        <SignOutModal
+          isOpen={showSignOutModal}
+          onClose={() => setShowSignOutModal(false)}
+          onConfirm={async () => {
+            setShowSignOutModal(false);
+            await signOut();
+          }}
+        />
       </aside>
 
       {/* Main Content */}
@@ -101,6 +140,55 @@ export default function MerchantDashboard() {
 
         {/* Dashboard Content */}
         <div className="p-6 space-y-6 overflow-y-auto">
+          {/* Verification Status Banner */}
+          {verificationStatus === 'pending' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 flex-shrink-0 font-bold">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-extrabold text-amber-900 text-sm">Awaiting Account Verification</h3>
+                  <span className="bg-amber-200 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Pending Admin Approval
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Your merchant store application has been submitted and is currently being reviewed by an Administrator. 
+                  All seller features (adding products, inventory management, receiving orders) will be automatically unlocked once your store verification is approved.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {verificationStatus === 'rejected' && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex items-start gap-4 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-700 flex-shrink-0 font-bold">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-red-900 text-sm">Store Application Rejected</h3>
+                  <span className="bg-red-200 text-red-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Action Required
+                  </span>
+                </div>
+                <p className="text-xs text-red-800 leading-relaxed">
+                  Your store application was not approved by the Administrator. Please contact platform support or update your business documentation to re-apply.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {verificationStatus === 'approved' && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3 shadow-xs">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <p className="text-xs text-emerald-800 font-bold">
+                Store Verified & Active — All Seller Features Unlocked
+              </p>
+            </div>
+          )}
+
           {/* Top Metrics Row - Bright cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -153,7 +241,7 @@ export default function MerchantDashboard() {
               ) : (
                 <EmptyState
                   title="No Orders Found"
-                  description="New store orders will appear here in real-time as customers purchase your items."
+                  description={verificationStatus === 'approved' ? "New store orders will appear here in real-time as customers purchase your items." : "Store verification is pending. Orders will be enabled once approved by Admin."}
                   icon="inbox"
                 />
               )}
@@ -163,13 +251,29 @@ export default function MerchantDashboard() {
             <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
               <h3 className="font-extrabold text-base text-[#0B1E3D]">Quick Actions</h3>
               <div className="space-y-2">
-                <button className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" /> Add New Product
+                <button
+                  disabled={verificationStatus !== 'approved'}
+                  className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {verificationStatus === 'approved' ? (
+                    <Plus className="w-4 h-4" />
+                  ) : (
+                    <Lock className="w-4 h-4" />
+                  )}
+                  {verificationStatus === 'approved' ? 'Add New Product' : 'Add Product (Verification Pending)'}
                 </button>
-                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors">
+                <button
+                  disabled={verificationStatus !== 'approved'}
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {verificationStatus !== 'approved' && <Lock className="w-3.5 h-3.5" />}
                   Request New Category
                 </button>
-                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors">
+                <button
+                  disabled={verificationStatus !== 'approved'}
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {verificationStatus !== 'approved' && <Lock className="w-3.5 h-3.5" />}
                   Update Store Banner
                 </button>
               </div>

@@ -7,6 +7,25 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Mail, Lock, User, Store, UserPlus, LogIn, AlertCircle, Loader2, Phone, Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
+function validatePassword(pass: string): string | null {
+  if (pass.length < 8) {
+    return 'Password must be at least 8 characters long.';
+  }
+  if (!/[A-Z]/.test(pass)) {
+    return 'Password must contain at least one uppercase letter (A-Z).';
+  }
+  if (!/[a-z]/.test(pass)) {
+    return 'Password must contain at least one lowercase letter (a-z).';
+  }
+  if (!/[0-9]/.test(pass)) {
+    return 'Password must contain at least one number (0-9).';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
+    return 'Password must contain at least one special character (!@#$%^&* etc.).';
+  }
+  return null;
+}
+
 function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -59,6 +78,13 @@ function AuthForm() {
     try {
       if (isRegister) {
         const role = activeTab === 'merchant' ? 'merchant' : 'customer';
+        const passError = validatePassword(password);
+        if (passError) {
+          setErrorMsg(passError);
+          setLoading(false);
+          return;
+        }
+
         const metaName = activeTab === 'merchant' ? businessName : fullName;
 
         const { data, error } = await supabase.auth.signUp({
@@ -80,7 +106,17 @@ function AuthForm() {
         if (data.session) {
           router.push(role === 'merchant' ? '/merchant' : redirectPath);
         } else {
-          setErrorMsg('Registration successful! Please check your email for confirmation.');
+          // Auto sign-in immediately so user never has to confirm email
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (!signInErr) {
+            router.push(role === 'merchant' ? '/merchant' : redirectPath);
+          } else {
+            setErrorMsg('Account created! Please sign in with your password.');
+          }
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -91,13 +127,25 @@ function AuthForm() {
         if (error) throw error;
 
         if (data.user) {
+          // Check if account is deleted
+          const isDeletedMeta = data.user.user_metadata?.is_deleted === true;
+
           const { data: profile } = await supabase
             .from('users')
-            .select('role')
+            .select('role, deleted_at, is_active')
             .eq('id', data.user.id)
             .single();
 
-          if (profile?.role === 'merchant') {
+          const isDeletedProfile = profile?.deleted_at != null || profile?.is_active === false;
+
+          if (isDeletedMeta || isDeletedProfile) {
+            await supabase.auth.signOut();
+            setErrorMsg('This account has been deleted. Access credentials are no longer valid.');
+            setLoading(false);
+            return;
+          }
+
+          if (profile?.role === 'merchant' || activeTab === 'merchant') {
             router.push('/merchant');
           } else if (profile?.role === 'admin') {
             router.push('/admin');
@@ -107,10 +155,24 @@ function AuthForm() {
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication failed. Please verify your credentials.');
+      if (err?.message === 'Failed to fetch' || err?.name === 'TypeError' || err?.toString()?.includes('Failed to fetch')) {
+        setErrorMsg('Network Error: Unable to reach Supabase server. Please check your internet connection or disable adblockers.');
+      } else {
+        setErrorMsg(err?.message || 'Authentication failed. Please verify your credentials.');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setEmail('');
+    setPassword('');
+    setFullName('');
+    setBusinessName('');
+    setPhone('');
+    setErrorMsg(null);
+    setShowPassword(false);
   };
 
   return (
@@ -120,7 +182,7 @@ function AuthForm() {
         <button
           onClick={() => {
             setActiveTab('customer');
-            setErrorMsg(null);
+            resetForm();
           }}
           className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
             activeTab === 'customer' ? 'bg-white text-[#1E293B] shadow-sm' : 'text-gray-500 hover:text-gray-900'
@@ -131,7 +193,7 @@ function AuthForm() {
         <button
           onClick={() => {
             setActiveTab('merchant');
-            setErrorMsg(null);
+            resetForm();
           }}
           className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 ${
             activeTab === 'merchant' ? 'bg-white text-[#FF6B00] shadow-sm' : 'text-gray-500 hover:text-gray-900'
@@ -147,7 +209,7 @@ function AuthForm() {
           type="button"
           onClick={() => {
             setIsRegister(false);
-            setErrorMsg(null);
+            resetForm();
           }}
           className={`py-2 text-xs font-extrabold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             !isRegister ? 'bg-[#FF6B00] text-white shadow-md' : 'text-[#1E293B] hover:bg-white/50'
@@ -159,7 +221,7 @@ function AuthForm() {
           type="button"
           onClick={() => {
             setIsRegister(true);
-            setErrorMsg(null);
+            resetForm();
           }}
           className={`py-2 text-xs font-extrabold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             isRegister ? 'bg-[#FF6B00] text-white shadow-md' : 'text-[#1E293B] hover:bg-white/50'
@@ -230,6 +292,7 @@ function AuthForm() {
                 <input
                   type="text"
                   required
+                  maxLength={80}
                   value={activeTab === 'merchant' ? businessName : fullName}
                   onChange={(e) =>
                     activeTab === 'merchant' ? setBusinessName(e.target.value) : setFullName(e.target.value)
@@ -248,10 +311,11 @@ function AuthForm() {
               <div className="relative">
                 <input
                   type="tel"
+                  maxLength={12}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  pattern="^[0-9\+\-\s\(\)]{10,15}$"
-                  title="Please enter a valid phone number (10-15 digits)"
+                  pattern="^[0-9\+\-\s\(\)]{10,12}$"
+                  title="Please enter a valid phone number (10-12 digits)"
                   placeholder="+91 9876543210"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
                 />
@@ -269,6 +333,7 @@ function AuthForm() {
             <input
               type="email"
               required
+              maxLength={100}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
@@ -284,6 +349,7 @@ function AuthForm() {
             <input
               type={showPassword ? 'text' : 'password'}
               required
+              maxLength={64}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
@@ -299,6 +365,11 @@ function AuthForm() {
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          {isRegister && (
+            <p className="text-[11px] text-gray-400 mt-1">
+              Min 8 chars, including uppercase (A-Z), lowercase (a-z), number (0-9), & symbol (!@#$).
+            </p>
+          )}
         </div>
 
         {!isRegister && (

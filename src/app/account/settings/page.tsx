@@ -409,7 +409,11 @@ export default function AccountSettingsPage() {
       if (error) throw error;
       showToast('success', 'Preferences saved!');
     } catch (err: any) {
-      showToast('error', err?.message ?? 'Failed to save preferences.');
+      if (err?.code === '42P01' || err?.message?.includes('user_preferences')) {
+        showToast('error', 'user_preferences table missing. Please run migration 08 in Supabase SQL Editor.');
+      } else {
+        showToast('error', err?.message ?? 'Failed to save preferences.');
+      }
       // revert
       setPrefs(prefs);
     } finally {
@@ -429,8 +433,26 @@ export default function AccountSettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   const changePassword = async () => {
-    if (passwordForm.newPassword.length < 8) {
-      showToast('error', 'Password must be at least 8 characters.');
+    const pass = passwordForm.newPassword;
+
+    if (pass.length < 8) {
+      showToast('error', 'Password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(pass)) {
+      showToast('error', 'Password must contain at least one uppercase letter (A-Z).');
+      return;
+    }
+    if (!/[a-z]/.test(pass)) {
+      showToast('error', 'Password must contain at least one lowercase letter (a-z).');
+      return;
+    }
+    if (!/[0-9]/.test(pass)) {
+      showToast('error', 'Password must contain at least one number (0-9).');
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pass)) {
+      showToast('error', 'Password must contain at least one special character (!@#$%^&* etc.).');
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -461,19 +483,33 @@ export default function AccountSettingsPage() {
     if (!user) return;
     setDeleteLoading(true);
     try {
-      // Client-side: we cannot call admin.deleteUser without server-side auth.
-      // Flag the account for deletion via user metadata and sign out.
+      const nowIso = new Date().toISOString();
+
+      // 1. Mark public.users table as soft-deleted and inactive
+      await supabase
+        .from('users')
+        .update({
+          deleted_at: nowIso,
+          is_active: false,
+        })
+        .eq('id', user.id);
+
+      // 2. Flag auth user metadata as is_deleted: true
       await supabase.auth.updateUser({
-        data: { deletion_requested_at: new Date().toISOString() },
+        data: {
+          is_deleted: true,
+          deleted_at: nowIso,
+        },
       });
+
       showToast(
         'success',
-        'Account deletion request submitted. You will be signed out now.'
+        'Your account has been deleted. You will be signed out now.'
       );
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 1500));
       await signOut();
     } catch (err: any) {
-      showToast('error', err?.message ?? 'Failed to submit deletion request.');
+      showToast('error', err?.message ?? 'Failed to delete account.');
     } finally {
       setDeleteLoading(false);
       setShowDeleteModal(false);
@@ -626,9 +662,9 @@ export default function AccountSettingsPage() {
                     onChange={(e) =>
                       setProfileForm((f) => ({ ...f, phone: e.target.value }))
                     }
-                    placeholder="+91 98765 43210"
+                    placeholder="+91 9876543210"
                     className={inputCls}
-                    maxLength={20}
+                    maxLength={12}
                   />
                 </Field>
 
