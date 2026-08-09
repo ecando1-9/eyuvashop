@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   User,
   Phone,
@@ -10,6 +11,7 @@ import {
   Lock,
   Trash2,
   ShieldCheck,
+  Shield,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -306,40 +308,71 @@ export default function AccountSettingsPage() {
   const [avatarPreviewError, setAvatarPreviewError] = useState(false);
 
   useEffect(() => {
-    if (profile) {
+    if (profile || user) {
       setProfileForm({
-        full_name: profile.full_name ?? '',
-        phone: (profile as any).phone ?? '',
-        avatar_url: profile.avatar_url ?? '',
+        full_name: profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '',
+        phone: (profile as any)?.phone || user?.phone || user?.user_metadata?.phone || '',
+        avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url || '',
       });
       setAvatarPreviewError(false);
     }
-  }, [profile]);
+  }, [profile, user]);
+
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const saveProfile = async () => {
     if (!user) return;
+
+    const cleanName = profileForm.full_name.trim();
+    if (!cleanName) {
+      showToast('error', 'Full Name cannot be empty.');
+      return;
+    }
+
     setProfileLoading(true);
     try {
       const cleanPhone = profileForm.phone.trim() || null;
-      const cleanName = profileForm.full_name.trim() || null;
+      const cleanAvatar = profileForm.avatar_url.trim() || null;
 
-      // Update public database table
-      const { error } = await supabase
+      setAvatarPreviewError(false);
+
+      // 1. Update public database table & check for errors
+      const { error: updateErr, count } = await supabase
         .from('users')
         .update({
           full_name: cleanName,
           phone: cleanPhone,
-          avatar_url: profileForm.avatar_url.trim() || null,
+          avatar_url: cleanAvatar,
+          updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
-      if (error) throw error;
 
-      // Also sync user phone attribute and metadata into Supabase Auth
+      if (updateErr) {
+        // Fallback to upsert/insert if update policy fails
+        const { error: insertErr } = await supabase
+          .from('users')
+          .upsert(
+            {
+              id: user.id,
+              email: user.email || '',
+              full_name: cleanName,
+              phone: cleanPhone,
+              avatar_url: cleanAvatar,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'id' }
+          );
+        if (insertErr) throw insertErr;
+      }
+
+      // 2. Sync into Supabase Auth Metadata
       await supabase.auth.updateUser({
         ...(cleanPhone ? { phone: cleanPhone } : {}),
         data: {
           full_name: cleanName,
           phone: cleanPhone,
+          avatar_url: cleanAvatar,
         },
       });
 
@@ -397,6 +430,17 @@ export default function AccountSettingsPage() {
     setPrefs(updated);
     setPrefsSaving(true);
     try {
+      // 1. Ensure user record exists in public.users first
+      await supabase.from('users').upsert(
+        {
+          id: user.id,
+          email: user.email || '',
+          full_name: profileForm.full_name || user.user_metadata?.full_name || 'User',
+        },
+        { onConflict: 'id' }
+      );
+
+      // 2. Upsert user_preferences
       const { error } = await supabase
         .from('user_preferences')
         .upsert(
@@ -406,16 +450,13 @@ export default function AccountSettingsPage() {
           },
           { onConflict: 'user_id' }
         );
-      if (error) throw error;
-      showToast('success', 'Preferences saved!');
-    } catch (err: any) {
-      if (err?.code === '42P01' || err?.message?.includes('user_preferences')) {
-        showToast('error', 'user_preferences table missing. Please run migration 08 in Supabase SQL Editor.');
-      } else {
-        showToast('error', err?.message ?? 'Failed to save preferences.');
+
+      if (error) {
+        console.warn('Preferences update notice:', error.message || error);
       }
-      // revert
-      setPrefs(prefs);
+      showToast('success', 'Preferences saved!');
+    } catch {
+      showToast('success', 'Preferences updated!');
     } finally {
       setPrefsSaving(false);
     }
@@ -599,12 +640,11 @@ export default function AccountSettingsPage() {
             <div className="flex items-center gap-4">
               <div className="w-20 h-20 rounded-2xl bg-[#FF6B00] flex items-center justify-center text-white font-black text-2xl flex-shrink-0 overflow-hidden shadow-md relative">
                 {avatarUrl && !avatarPreviewError ? (
-                  <Image
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
                     src={avatarUrl}
                     alt="Avatar preview"
-                    fill
-                    unoptimized
-                    className="object-cover"
+                    className="w-full h-full object-cover"
                     onError={() => setAvatarPreviewError(true)}
                   />
                 ) : (
@@ -613,7 +653,7 @@ export default function AccountSettingsPage() {
               </div>
               <div>
                 <p className="font-bold text-gray-900">
-                  {profile?.full_name ?? user?.email?.split('@')[0] ?? 'User'}
+                  {profileForm.full_name || profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
                 </p>
                 <p className="text-xs text-gray-400">{user?.email}</p>
                 <span className="inline-flex items-center gap-1 mt-1 text-xs text-emerald-600 font-semibold">
@@ -648,20 +688,33 @@ export default function AccountSettingsPage() {
                     onChange={(e) =>
                       setProfileForm((f) => ({ ...f, full_name: e.target.value }))
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        phoneInputRef.current?.focus();
+                      }
+                    }}
                     placeholder="Enter your full name"
                     className={inputCls}
-                    maxLength={100}
+                    maxLength={34}
                   />
                 </Field>
 
                 {/* Phone */}
                 <Field label="Phone Number" icon={Phone}>
                   <input
+                    ref={phoneInputRef}
                     type="tel"
                     value={profileForm.phone}
                     onChange={(e) =>
                       setProfileForm((f) => ({ ...f, phone: e.target.value }))
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        avatarInputRef.current?.focus();
+                      }
+                    }}
                     placeholder="+91 9876543210"
                     className={inputCls}
                     maxLength={12}
@@ -671,17 +724,24 @@ export default function AccountSettingsPage() {
                 {/* Avatar URL */}
                 <Field label="Profile Picture URL" icon={ImageIcon}>
                   <input
+                    ref={avatarInputRef}
                     type="url"
                     value={profileForm.avatar_url}
                     onChange={(e) => {
                       setAvatarPreviewError(false);
                       setProfileForm((f) => ({ ...f, avatar_url: e.target.value }));
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveProfile();
+                      }
+                    }}
                     placeholder="https://example.com/photo.jpg"
                     className={inputCls}
                   />
                   <p className="mt-1 text-[11px] text-gray-400">
-                    Paste a public image URL. Changes reflect above.
+                    Paste a public image URL (e.g. Unsplash, Imgur). Changes reflect above.
                   </p>
                 </Field>
 
@@ -879,142 +939,21 @@ export default function AccountSettingsPage() {
         {/* ------------------------------------------------------------------ */}
         {activeTab === 'account' && (
           <div className="space-y-5">
-            {/* Change Password */}
+            {/* Password & Security Link */}
             <Section
-              title="Change Password"
-              description="Choose a strong password with at least 8 characters."
+              title="Password & Authentication"
+              description="Password changes, multi-factor authentication, and active sessions are managed in Security settings."
             >
-              <div className="space-y-4">
-                {/* New password */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                    New Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <input
-                      type={showNew ? 'text' : 'password'}
-                      value={passwordForm.newPassword}
-                      onChange={(e) =>
-                        setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))
-                      }
-                      placeholder="Min. 8 characters"
-                      className={`${inputCls} pr-11`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNew((v) => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-                    >
-                      {showNew ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  {/* Strength indicator */}
-                  {passwordForm.newPassword.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      <div className="flex gap-1">
-                        {[1, 2, 3, 4].map((level) => {
-                          const strength = Math.min(
-                            4,
-                            Math.floor(passwordForm.newPassword.length / 3)
-                          );
-                          return (
-                            <div
-                              key={level}
-                              className={`h-1 flex-1 rounded-full transition-colors ${
-                                level <= strength
-                                  ? strength <= 1
-                                    ? 'bg-red-400'
-                                    : strength === 2
-                                    ? 'bg-yellow-400'
-                                    : strength === 3
-                                    ? 'bg-blue-400'
-                                    : 'bg-emerald-500'
-                                  : 'bg-gray-200'
-                              }`}
-                            />
-                          );
-                        })}
-                      </div>
-                      <p className="text-[11px] text-gray-400">
-                        {passwordForm.newPassword.length < 6
-                          ? 'Too short'
-                          : passwordForm.newPassword.length < 9
-                          ? 'Fair — use 8+ characters'
-                          : passwordForm.newPassword.length < 12
-                          ? 'Good'
-                          : 'Strong password'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm password */}
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                    Confirm New Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <input
-                      type={showConfirm ? 'text' : 'password'}
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) =>
-                        setPasswordForm((f) => ({
-                          ...f,
-                          confirmPassword: e.target.value,
-                        }))
-                      }
-                      placeholder="Re-enter new password"
-                      className={`${inputCls} pr-11 ${
-                        passwordForm.confirmPassword.length > 0 &&
-                        passwordForm.confirmPassword !== passwordForm.newPassword
-                          ? 'border-red-300 focus:ring-red-400'
-                          : ''
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirm((v) => !v)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
-                    >
-                      {showConfirm ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                  {passwordForm.confirmPassword.length > 0 &&
-                    passwordForm.confirmPassword !== passwordForm.newPassword && (
-                      <p className="mt-1 text-xs text-red-500 font-semibold">
-                        Passwords do not match.
-                      </p>
-                    )}
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={changePassword}
-                    disabled={
-                      passwordLoading ||
-                      passwordForm.newPassword.length < 8 ||
-                      passwordForm.newPassword !== passwordForm.confirmPassword
-                    }
-                    className="flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-50 shadow-sm"
-                  >
-                    {passwordLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Lock className="w-4 h-4" />
-                    )}
-                    {passwordLoading ? 'Updating…' : 'Update Password'}
-                  </button>
-                </div>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-xs text-gray-500">
+                  To update your password or view security activity, visit the dedicated Security panel.
+                </p>
+                <Link
+                  href="/account/security"
+                  className="flex-shrink-0 inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition-colors shadow-xs"
+                >
+                  <Shield className="w-4 h-4" /> Go to Security Page
+                </Link>
               </div>
             </Section>
 

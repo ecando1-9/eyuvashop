@@ -58,12 +58,11 @@ export function AccountSidebar() {
           <div className="flex items-center gap-3">
             {profile?.avatar_url ? (
               <div className="relative w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md">
-                <Image
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={profile.avatar_url}
                   alt={profile.full_name || 'User'}
-                  fill
-                  unoptimized
-                  className="object-cover"
+                  className="w-full h-full object-cover"
                 />
               </div>
             ) : (
@@ -73,7 +72,7 @@ export function AccountSidebar() {
             )}
             <div className="min-w-0">
               <h3 className="font-extrabold text-gray-900 text-sm truncate">
-                {profile?.full_name || user?.email?.split('@')[0] || 'User'}
+                {profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
               </h3>
               <p className="text-xs text-gray-400 truncate">{user?.email}</p>
               <div className="flex items-center gap-1 mt-1">

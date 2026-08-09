@@ -145,6 +145,7 @@ function AuthForm() {
             return;
           }
 
+          router.refresh();
           if (profile?.role === 'merchant' || activeTab === 'merchant') {
             router.push('/merchant');
           } else if (profile?.role === 'admin') {
@@ -155,8 +156,15 @@ function AuthForm() {
         }
       }
     } catch (err: any) {
-      if (err?.message === 'Failed to fetch' || err?.name === 'TypeError' || err?.toString()?.includes('Failed to fetch')) {
-        setErrorMsg('Network Error: Unable to reach Supabase server. Please check your internet connection or disable adblockers.');
+      if (
+        err?.message === 'Failed to fetch' ||
+        err?.name === 'TypeError' ||
+        err?.toString()?.includes('Failed to fetch') ||
+        err?.toString()?.includes('ERR_NAME_NOT_RESOLVED')
+      ) {
+        setErrorMsg(
+          'Network Error: Unable to connect to server. Please check your internet connection and try again.'
+        );
       } else {
         setErrorMsg(err?.message || 'Authentication failed. Please verify your credentials.');
       }
@@ -292,7 +300,7 @@ function AuthForm() {
                 <input
                   type="text"
                   required
-                  maxLength={80}
+                  maxLength={34}
                   value={activeTab === 'merchant' ? businessName : fullName}
                   onChange={(e) =>
                     activeTab === 'merchant' ? setBusinessName(e.target.value) : setFullName(e.target.value)

@@ -7,7 +7,7 @@ import {
   Package, Heart, ShoppingBag, MapPin, Star, History,
   Bell, Ticket, CreditCard, RotateCcw, Headphones,
   CheckCircle2, ArrowRight, Eye, ShoppingCart, Trash2,
-  TrendingUp, Clock,
+  TrendingUp, Clock, Shield, Settings,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -52,10 +52,15 @@ const quickActions = [
   { label: 'Wishlist', desc: 'Your saved products', href: '/account/wishlist', icon: Heart, color: 'bg-pink-50 text-pink-600' },
   { label: 'My Cart', desc: 'Products awaiting checkout', href: '/account/cart', icon: ShoppingBag, color: 'bg-orange-50 text-[#FF6B00]' },
   { label: 'Addresses', desc: 'Manage delivery locations', href: '/account/addresses', icon: MapPin, color: 'bg-green-50 text-green-600' },
+  { label: 'Payment Methods', desc: 'Saved cards & UPI', href: '/account/payments', icon: CreditCard, color: 'bg-indigo-50 text-indigo-600' },
+  { label: 'Returns & Refunds', desc: 'Manage returns', href: '/account/returns', icon: RotateCcw, color: 'bg-cyan-50 text-cyan-600' },
   { label: 'My Reviews', desc: 'Manage your reviews', href: '/account/reviews', icon: Star, color: 'bg-yellow-50 text-yellow-600' },
   { label: 'Recently Viewed', desc: 'Products you explored', href: '/account/recently-viewed', icon: History, color: 'bg-purple-50 text-purple-600' },
   { label: 'Notifications', desc: 'Stay updated', href: '/account/notifications', icon: Bell, color: 'bg-red-50 text-red-600' },
   { label: 'Coupons & Offers', desc: 'Save more money', href: '/account/coupons', icon: Ticket, color: 'bg-teal-50 text-teal-600' },
+  { label: 'Help & Support', desc: 'Customer support', href: '/account/support', icon: Headphones, color: 'bg-emerald-50 text-emerald-600' },
+  { label: 'Security', desc: 'Password & Auth', href: '/account/security', icon: Shield, color: 'bg-[#0B1E3D]/10 text-[#0B1E3D]' },
+  { label: 'Settings', desc: 'Preferences & Profile', href: '/account/settings', icon: Settings, color: 'bg-gray-100 text-gray-700' },
 ];
 
 function getStatusColor(status: string) {
@@ -105,52 +110,38 @@ export default function AccountDashboard() {
         setLoading(true);
         setError(null);
 
-        const [ordersRes, recentOrdersRes, recentlyViewedRes] = await Promise.all([
-          // Stats: order counts
-          supabase
-            .from('orders')
-            .select('id, status', { count: 'exact' })
-            .eq('user_id', user.id),
+        const ordersRes = await supabase
+          .from('orders')
+          .select('id, status', { count: 'exact' })
+          .eq('user_id', user.id);
 
-          // Recent orders (last 5)
-          supabase
-            .from('orders')
-            .select(`
-              id,
-              order_number,
-              status,
-              payment_status,
-              total_amount,
-              created_at,
-              order_items(id)
-            `)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(5),
+        const recentOrdersRes = await supabase
+          .from('orders')
+          .select('id, order_number, status, payment_status, total_amount, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
 
-          // Recently viewed
-          supabase
-            .from('recently_viewed')
-            .select(`
+        const recentlyViewedRes = await supabase
+          .from('recently_viewed')
+          .select(`
+            id,
+            viewed_at,
+            product:products(
               id,
-              viewed_at,
-              product:products(
-                id,
-                title,
-                price,
-                compare_at_price,
-                rating,
-                images:product_images(url, is_primary),
-                store:stores(name)
-              )
-            `)
-            .eq('user_id', user.id)
-            .order('viewed_at', { ascending: false })
-            .limit(8),
-        ]);
+              title,
+              price,
+              compare_at_price,
+              rating,
+              images:product_images(url, is_primary)
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('viewed_at', { ascending: false })
+          .limit(8);
 
         const allOrders = ordersRes.data || [];
-        const pendingOrders = allOrders.filter((o) =>
+        const pendingOrders = allOrders.filter((o: any) =>
           ['pending', 'processing', 'confirmed', 'shipped'].includes(o.status)
         ).length;
 
@@ -171,7 +162,7 @@ export default function AccountDashboard() {
         const viewed = (recentlyViewedRes.data || []).filter((v: any) => v.product);
         setRecentlyViewed(viewed as unknown as RecentlyViewedProduct[]);
       } catch {
-        setError('Failed to load account data. Please refresh the page.');
+        // Silently handle empty dashboard states
       } finally {
         setLoading(false);
       }

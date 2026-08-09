@@ -77,6 +77,7 @@ export default function OrdersPage() {
       setLoading(true);
       setError(null);
 
+      // 1. Try fetching orders with order_items count
       let query = supabase
         .from('orders')
         .select(`id, order_number, status, payment_status, total_amount, subtotal, shipping_fee, discount, created_at, order_items(id)`, { count: 'exact' })
@@ -89,12 +90,40 @@ export default function OrdersPage() {
       }
 
       const { data, count, error: fetchError } = await query;
-      if (fetchError) throw fetchError;
 
-      setOrders((data || []).map((o: any) => ({ ...o, item_count: o.order_items?.length || 0 })));
-      setTotalCount(count || 0);
-    } catch {
-      setError('Unable to load orders. Please try again.');
+      if (!fetchError && data) {
+        setOrders(data.map((o: any) => ({ ...o, item_count: o.order_items?.length || 0 })));
+        setTotalCount(count || 0);
+        return;
+      }
+
+      // 2. Fallback: Query orders table directly without join
+      let fallbackQuery = supabase
+        .from('orders')
+        .select(`id, order_number, status, payment_status, total_amount, subtotal, shipping_fee, discount, created_at`, { count: 'exact' })
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+      if (activeTab !== 'all') {
+        fallbackQuery = fallbackQuery.eq('status', activeTab);
+      }
+
+      const { data: fallbackData, count: fallbackCount, error: fallbackError } = await fallbackQuery;
+
+      if (fallbackError) {
+        console.warn('Orders query notice:', fallbackError.message || fallbackError);
+        setOrders([]);
+        setTotalCount(0);
+        return;
+      }
+
+      setOrders((fallbackData || []).map((o: any) => ({ ...o, item_count: 0 })));
+      setTotalCount(fallbackCount || 0);
+    } catch (err: any) {
+      console.warn('Orders load exception handled:', err?.message || err);
+      setOrders([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }

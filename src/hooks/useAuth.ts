@@ -44,8 +44,30 @@ export function useAuth(): UseAuthReturn {
           .eq('is_read', false),
       ]);
 
+      const profileObj = profileRes.data ? (profileRes.data as UserProfile) : null;
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const metaName = currentUser?.user_metadata?.full_name;
+      const metaAvatar = currentUser?.user_metadata?.avatar_url;
+
+      const finalProfile: UserProfile = profileObj
+        ? {
+            ...profileObj,
+            full_name: profileObj.full_name || metaName || currentUser?.email?.split('@')[0] || 'User',
+            avatar_url: profileObj.avatar_url || metaAvatar,
+          }
+        : {
+            id: userId,
+            email: currentUser?.email || '',
+            full_name: metaName || currentUser?.email?.split('@')[0] || 'User',
+            avatar_url: metaAvatar,
+            role: 'customer',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+
       return {
-        profile: (profileRes.data as UserProfile) || null,
+        profile: finalProfile,
         unreadNotifications: notifRes.count || 0,
       };
     } catch {

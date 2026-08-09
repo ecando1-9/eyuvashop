@@ -314,48 +314,90 @@ export default function RecentlyViewedPage() {
       setLoading(true);
       setError(null);
 
+      // 1. Try nested PostgREST query
       const { data, error: fetchError } = await supabase
         .from('recently_viewed')
         .select(`
           id, viewed_at,
           product:products(
-            id, title, price, compare_at_price, rating, review_count,
-            images:product_images(url, is_primary),
-            store:stores(name),
-            inventory(quantity)
+            id, title, price, compare_at_price, rating,
+            images:product_images(url, is_primary)
           )
         `)
         .eq('user_id', user.id)
         .order('viewed_at', { ascending: false })
         .limit(50);
 
-      if (fetchError) throw fetchError;
+      if (!fetchError && data) {
+        const formatted: RecentlyViewedProduct[] = data
+          .filter((row: any) => row.product)
+          .map((row: any) => ({
+            id: row.id,
+            viewed_at: row.viewed_at,
+            product: row.product,
+          }));
 
-      const formatted: RecentlyViewedProduct[] = (data || [])
-        .filter((row: any) => row.product)
-        .map((row: any) => ({
-          id: row.id,
-          viewed_at: row.viewed_at,
-          product: row.product,
+        setItems(formatted);
+
+        if (formatted.length > 0) {
+          const productIds = formatted.map((r) => r.product.id);
+          const { data: wlData } = await supabase
+            .from('wishlist')
+            .select('product_id')
+            .eq('user_id', user.id)
+            .in('product_id', productIds);
+
+          if (wlData) {
+            setWishlistedIds(new Set(wlData.map((w: any) => w.product_id)));
+          }
+        }
+        return;
+      }
+
+      // 2. Fallback: Query recently_viewed table directly
+      const { data: rawData, error: rawError } = await supabase
+        .from('recently_viewed')
+        .select('id, product_id, viewed_at')
+        .eq('user_id', user.id)
+        .order('viewed_at', { ascending: false })
+        .limit(50);
+
+      if (rawError) {
+        console.warn('Recently viewed query notice:', rawError.message || rawError);
+        setItems([]);
+        return;
+      }
+
+      if (!rawData || rawData.length === 0) {
+        setItems([]);
+        return;
+      }
+
+      const productIds = rawData.map((r) => r.product_id).filter(Boolean);
+      if (productIds.length === 0) {
+        setItems([]);
+        return;
+      }
+
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, title, price, compare_at_price, rating, images:product_images(url, is_primary)')
+        .in('id', productIds);
+
+      const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+
+      const formatted: RecentlyViewedProduct[] = rawData
+        .filter((r) => productMap.has(r.product_id))
+        .map((r) => ({
+          id: r.id,
+          viewed_at: r.viewed_at,
+          product: productMap.get(r.product_id),
         }));
 
       setItems(formatted);
-
-      // Fetch wishlist state for these products
-      if (formatted.length > 0) {
-        const productIds = formatted.map((r) => r.product.id);
-        const { data: wlData } = await supabase
-          .from('wishlist')
-          .select('product_id')
-          .eq('user_id', user.id)
-          .in('product_id', productIds);
-
-        if (wlData) {
-          setWishlistedIds(new Set(wlData.map((w: any) => w.product_id)));
-        }
-      }
-    } catch {
-      setError('Failed to load your recently viewed products. Please try again.');
+    } catch (err: any) {
+      console.warn('Recently viewed load exception handled:', err?.message || err);
+      setItems([]);
     } finally {
       setLoading(false);
     }

@@ -158,8 +158,8 @@ export function Header() {
             </Link>
           ) : user ? (
             <>
-              {/* Logged In — User Dropdown */}
-              <div className="relative" ref={menuRef}>
+              {/* Logged In — User Dropdown (Hidden on mobile, visible on desktop) */}
+              <div className="relative hidden md:block" ref={menuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full pl-1 pr-3 py-1 transition-colors group"
@@ -167,21 +167,19 @@ export function Header() {
                   aria-expanded={userMenuOpen}
                 >
                   {profile?.avatar_url ? (
-                    <Image
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
                       src={profile.avatar_url}
                       alt={profile.full_name || 'User'}
-                      width={32}
-                      height={32}
                       className="rounded-full object-cover w-8 h-8 flex-shrink-0"
-                      unoptimized
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center font-extrabold text-xs flex-shrink-0">
                       {userInitials}
                     </div>
                   )}
-                  <span className="text-xs font-extrabold text-gray-800 hidden md:inline truncate max-w-[100px]">
-                    {profile?.full_name?.split(' ')[0] || user.email?.split('@')[0]}
+                  <span className="text-xs font-extrabold text-gray-800 hidden md:inline truncate max-w-[120px]">
+                    {profile?.full_name?.split(' ')[0] || user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0]}
                   </span>
                 </button>
 
@@ -189,7 +187,9 @@ export function Header() {
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                     <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-bold text-gray-900 truncate">{profile?.full_name || 'User'}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">
+                        {profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0]}
+                      </p>
                       <p className="text-xs text-gray-400 truncate">{user.email}</p>
                     </div>
 
@@ -313,7 +313,10 @@ export function Header() {
                 <Link href="/categories" className="p-2 hover:bg-gray-50 rounded-lg">Categories</Link>
                 <Link href="/merchant" className="p-2 hover:bg-gray-50 rounded-lg">Sell on eYuvaShop</Link>
                 <button
-                  onClick={signOut}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowSignOutModal(true);
+                  }}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-lg text-left flex items-center gap-2"
                 >
                   <LogOut className="w-4 h-4" /> Sign Out

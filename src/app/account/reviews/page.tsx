@@ -694,22 +694,60 @@ export default function ReviewsPage() {
 
   const fetchReviews = useCallback(async () => {
     if (!user) return;
-    setReviewsLoading(true);
-    setReviewsError(null);
-    const { data, error } = await supabase
-      .from('reviews')
-      .select(
-        `id, rating, title, body, created_at, updated_at,
-         product:products(id, title, images:product_images(url, is_primary))`
-      )
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+    try {
+      setReviewsLoading(true);
+      setReviewsError(null);
 
-    setReviewsLoading(false);
-    if (error) {
-      setReviewsError('Failed to load your reviews. Please try again.');
-    } else {
-      setReviews((data as unknown as Review[]) ?? []);
+      // 1. Try nested query
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(
+          `id, rating, title, body, created_at, updated_at,
+           product:products(id, title, images:product_images(url, is_primary))`
+        )
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setReviews((data as unknown as Review[]) ?? []);
+        return;
+      }
+
+      // 2. Fallback: Direct reviews query
+      const { data: rawReviews, error: rawErr } = await supabase
+        .from('reviews')
+        .select('id, rating, title, body, created_at, updated_at, product_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (rawErr) {
+        setReviews([]);
+        return;
+      }
+
+      if (!rawReviews || rawReviews.length === 0) {
+        setReviews([]);
+        return;
+      }
+
+      const productIds = rawReviews.map((r) => r.product_id).filter(Boolean);
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, title, images:product_images(url, is_primary)')
+        .in('id', productIds);
+
+      const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+
+      const formatted = rawReviews.map((r) => ({
+        ...r,
+        product: productMap.get(r.product_id) || null,
+      }));
+
+      setReviews(formatted as unknown as Review[]);
+    } catch {
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
     }
   }, [user, supabase]);
 
@@ -719,44 +757,48 @@ export default function ReviewsPage() {
 
   const fetchAwaiting = useCallback(async () => {
     if (!user) return;
-    setAwaitingLoading(true);
-    setAwaitingError(null);
+    try {
+      setAwaitingLoading(true);
+      setAwaitingError(null);
 
-    // Fetch already-reviewed product IDs
-    const { data: reviewedData } = await supabase
-      .from('reviews')
-      .select('product_id')
-      .eq('user_id', user.id);
+      // Fetch already-reviewed product IDs
+      const { data: reviewedData } = await supabase
+        .from('reviews')
+        .select('product_id')
+        .eq('user_id', user.id);
 
-    const reviewedProductIds = new Set(
-      (reviewedData ?? []).map((r: { product_id: string }) => r.product_id)
-    );
+      const reviewedProductIds = new Set(
+        (reviewedData ?? []).map((r: { product_id: string }) => r.product_id)
+      );
 
-    // Fetch delivered order items
-    const { data, error } = await supabase
-      .from('order_items')
-      .select(
-        `id, product_id,
-         order:orders!inner(id, status, created_at),
-         product:products(id, title, images:product_images(url, is_primary))`
-      )
-      .eq('order.user_id', user.id)
-      .eq('order.status', 'delivered');
+      // Fetch delivered order items
+      const { data, error } = await supabase
+        .from('order_items')
+        .select(
+          `id, product_id,
+           order:orders!inner(id, status, created_at),
+           product:products(id, title, images:product_images(url, is_primary))`
+        )
+        .eq('order.user_id', user.id)
+        .eq('order.status', 'delivered');
 
-    setAwaitingLoading(false);
-    if (error) {
-      setAwaitingError('Failed to load items awaiting review. Please try again.');
-    } else {
-      const items = (data as unknown as AwaitingItem[]) ?? [];
-      // Deduplicate by product_id and filter already-reviewed products
-      const seen = new Set<string>();
-      const filtered = items.filter((item) => {
-        if (reviewedProductIds.has(item.product_id)) return false;
-        if (seen.has(item.product_id)) return false;
-        seen.add(item.product_id);
-        return true;
-      });
-      setAwaitingItems(filtered);
+      if (!error && data) {
+        const items = (data as unknown as AwaitingItem[]) ?? [];
+        const seen = new Set<string>();
+        const filtered = items.filter((item) => {
+          if (reviewedProductIds.has(item.product_id)) return false;
+          if (seen.has(item.product_id)) return false;
+          seen.add(item.product_id);
+          return true;
+        });
+        setAwaitingItems(filtered);
+      } else {
+        setAwaitingItems([]);
+      }
+    } catch {
+      setAwaitingItems([]);
+    } finally {
+      setAwaitingLoading(false);
     }
   }, [user, supabase]);
 

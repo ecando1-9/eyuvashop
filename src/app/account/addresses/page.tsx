@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MapPin, Plus, Edit2, Trash2, Star, Home, Briefcase, MoreVertical, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -71,8 +71,43 @@ export default function AddressesPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const stateSelectRef = useRef<HTMLSelectElement>(null);
 
   const supabase = createClient();
+
+  const handlePinCodeChange = async (val: string) => {
+    const cleanPin = val.replace(/\D/g, '').slice(0, 6);
+    f('postal_code', cleanPin);
+
+    if (cleanPin.length === 6) {
+      // Auto-focus next field (State select)
+      setTimeout(() => {
+        stateSelectRef.current?.focus();
+      }, 100);
+
+      // Auto lookup City & State from Indian Postal PIN Code API
+      try {
+        setPincodeLoading(true);
+        const res = await fetch(`https://api.postalpincode.in/pincode/${cleanPin}`);
+        const data = await res.json();
+        if (data?.[0]?.Status === 'Success' && data[0].PostOffice?.length > 0) {
+          const po = data[0].PostOffice[0];
+          if (po.District) f('city', po.District);
+          if (po.State) {
+            const matchedState = INDIAN_STATES.find(
+              (s) => s.toLowerCase() === po.State.toLowerCase()
+            );
+            if (matchedState) f('state', matchedState);
+          }
+        }
+      } catch {
+        // Fallback gracefully
+      } finally {
+        setPincodeLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -82,6 +117,8 @@ export default function AddressesPage() {
   const fetchAddresses = async () => {
     try {
       setLoading(true);
+      setError(null);
+
       const { data, error: fetchError } = await supabase
         .from('addresses')
         .select('*')
@@ -89,10 +126,15 @@ export default function AddressesPage() {
         .order('is_default', { ascending: false })
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.warn('Addresses fetch notice:', fetchError.message || fetchError);
+        setAddresses([]);
+        return;
+      }
       setAddresses((data || []) as Address[]);
-    } catch {
-      setError('Failed to load addresses.');
+    } catch (err: any) {
+      console.warn('Addresses load exception handled:', err?.message || err);
+      setAddresses([]);
     } finally {
       setLoading(false);
     }
@@ -101,11 +143,19 @@ export default function AddressesPage() {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!form.full_name.trim()) errors.full_name = 'Name is required';
-    if (!/^[6-9]\d{9}$/.test(form.phone)) errors.phone = 'Enter valid 10-digit Indian mobile number';
+    
+    const cleanPhone = form.phone.replace(/\D/g, '');
+    if (!cleanPhone || cleanPhone.length < 10 || cleanPhone.length > 12) {
+      errors.phone = 'Enter valid 10 to 12 digit mobile number';
+    }
+
     if (!form.address_line1.trim()) errors.address_line1 = 'Address line 1 is required';
     if (!form.city.trim()) errors.city = 'City is required';
     if (!form.state) errors.state = 'State is required';
-    if (!/^\d{6}$/.test(form.postal_code)) errors.postal_code = 'Enter valid 6-digit PIN code';
+    
+    const cleanPin = form.postal_code.replace(/\D/g, '');
+    if (cleanPin.length !== 6) errors.postal_code = 'Enter valid 6-digit PIN code';
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -114,6 +164,7 @@ export default function AddressesPage() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setFormErrors({});
+    setError(null);
     setShowForm(true);
   };
 
@@ -128,11 +179,12 @@ export default function AddressesPage() {
       city: addr.city,
       state: addr.state,
       postal_code: addr.postal_code,
-      address_type: addr.address_type,
+      address_type: addr.address_type || 'home',
       is_default: addr.is_default,
     });
     setEditingId(addr.id);
     setFormErrors({});
+    setError(null);
     setShowForm(true);
   };
 
@@ -140,6 +192,7 @@ export default function AddressesPage() {
     if (!validateForm()) return;
     try {
       setSaving(true);
+      setError(null);
 
       // If setting as default, remove default from all others first
       if (form.is_default) {
@@ -161,21 +214,25 @@ export default function AddressesPage() {
         state: form.state,
         postal_code: form.postal_code.trim(),
         country: 'India',
-        address_type: form.address_type,
+        address_type: form.address_type || 'home',
         is_default: form.is_default,
-        updated_at: new Date().toISOString(),
       };
 
+      let saveErr;
       if (editingId) {
-        await supabase.from('addresses').update(payload).eq('id', editingId).eq('user_id', user!.id);
+        const { error: err } = await supabase.from('addresses').update(payload).eq('id', editingId).eq('user_id', user!.id);
+        saveErr = err;
       } else {
-        await supabase.from('addresses').insert(payload);
+        const { error: err } = await supabase.from('addresses').insert(payload);
+        saveErr = err;
       }
+
+      if (saveErr) throw saveErr;
 
       setShowForm(false);
       fetchAddresses();
-    } catch {
-      setError('Failed to save address. Please try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save address. Please verify your details.');
     } finally {
       setSaving(false);
     }
@@ -358,7 +415,7 @@ export default function AddressesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 sm:col-span-1">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Full Name *</label>
-                  <input className={inputClass('full_name')} maxLength={70} value={form.full_name} onChange={(e) => f('full_name', e.target.value)} placeholder="Yuva Kiran" />
+                  <input className={inputClass('full_name')} maxLength={34} value={form.full_name} onChange={(e) => f('full_name', e.target.value)} placeholder="Yuva Kiran" />
                   {formErrors.full_name && <p className="text-xs text-red-500 mt-1">{formErrors.full_name}</p>}
                 </div>
                 <div className="col-span-2 sm:col-span-1">
@@ -389,13 +446,29 @@ export default function AddressesPage() {
                   {formErrors.city && <p className="text-xs text-red-500 mt-1">{formErrors.city}</p>}
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">PIN Code *</label>
-                  <input className={inputClass('postal_code')} maxLength={6} value={form.postal_code} onChange={(e) => f('postal_code', e.target.value)} placeholder="500001" />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-gray-700 block">PIN Code *</label>
+                    {pincodeLoading && (
+                      <span className="text-[10px] text-[#FF6B00] font-bold animate-pulse">Auto-fetching City & State...</span>
+                    )}
+                  </div>
+                  <input
+                    className={inputClass('postal_code')}
+                    maxLength={6}
+                    value={form.postal_code}
+                    onChange={(e) => handlePinCodeChange(e.target.value)}
+                    placeholder="500001"
+                  />
                   {formErrors.postal_code && <p className="text-xs text-red-500 mt-1">{formErrors.postal_code}</p>}
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">State *</label>
-                  <select className={inputClass('state')} value={form.state} onChange={(e) => f('state', e.target.value)}>
+                  <select
+                    ref={stateSelectRef}
+                    className={inputClass('state')}
+                    value={form.state}
+                    onChange={(e) => f('state', e.target.value)}
+                  >
                     <option value="">Select State</option>
                     {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>

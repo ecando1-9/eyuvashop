@@ -10,15 +10,24 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isDeletedUser = user?.user_metadata?.is_deleted === true;
 
+  // Helper to preserve refreshed cookies on redirects
+  const redirectWithCookies = (targetPath: string) => {
+    const redirectRes = NextResponse.redirect(new URL(targetPath, request.url));
+    response.cookies.getAll().forEach((c) => {
+      redirectRes.cookies.set(c);
+    });
+    return redirectRes;
+  };
+
   // Protect account routes — redirect to /login
   if (pathname.startsWith('/account') && (!user || isDeletedUser)) {
-    return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
+    return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
   }
 
   // Protect admin routes
   if (pathname.startsWith('/admin')) {
     if (!user || isDeletedUser) {
-      return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
+      return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
     }
 
     const { data: profile } = await supabase
@@ -28,18 +37,18 @@ export async function proxy(request: NextRequest) {
       .single();
 
     if (!profile || profile.role !== 'admin') {
-      return NextResponse.redirect(new URL('/', request.url));
+      return redirectWithCookies('/');
     }
   }
 
   // Protect merchant routes
   if (pathname.startsWith('/merchant') && (!user || isDeletedUser)) {
-    return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
+    return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
   }
 
   // Redirect active logged-in users away from auth pages
   if (user && !isDeletedUser && (pathname === '/login' || pathname === '/signup')) {
-    return NextResponse.redirect(new URL('/', request.url));
+    return redirectWithCookies('/');
   }
 
   return response;

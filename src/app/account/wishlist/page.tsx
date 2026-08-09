@@ -47,36 +47,54 @@ export default function WishlistPage() {
   const fetchWishlist = async () => {
     try {
       setLoading(true);
-      const { data, error: fetchError } = await supabase
+      setError(null);
+
+      // 1. Query wishlist items directly for maximum reliability
+      const { data: rawWishlist, error: wishlistError } = await supabase
         .from('wishlist')
-        .select(`
-          id,
-          product_id,
-          created_at,
-          product:products(
-            id, title, price, compare_at_price, rating, review_count, status,
-            images:product_images(url, is_primary),
-            store:stores(name),
-            inventory(quantity)
-          )
-        `)
+        .select('id, product_id, created_at')
         .eq('user_id', user!.id)
         .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+      if (wishlistError) {
+        console.warn('Wishlist query notice:', wishlistError.message || wishlistError);
+        setItems([]);
+        return;
+      }
 
-      const formatted = (data || [])
-        .filter((item: any) => item.product)
-        .map((item: any) => ({
-          wishlist_id: item.id,
-          product_id: item.product_id,
-          added_at: item.created_at,
-          product: item.product,
+      if (!rawWishlist || rawWishlist.length === 0) {
+        setItems([]);
+        return;
+      }
+
+      // 2. Fetch corresponding product details
+      const productIds = rawWishlist.map((w) => w.product_id).filter(Boolean);
+      
+      if (productIds.length === 0) {
+        setItems([]);
+        return;
+      }
+
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, title, price, compare_at_price, rating, status, images:product_images(url, is_primary)')
+        .in('id', productIds);
+
+      const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+
+      const formatted = rawWishlist
+        .filter((w) => productMap.has(w.product_id))
+        .map((w) => ({
+          wishlist_id: w.id,
+          product_id: w.product_id,
+          added_at: w.created_at,
+          product: productMap.get(w.product_id),
         }));
 
       setItems(formatted);
-    } catch {
-      setError('Failed to load your wishlist. Please try again.');
+    } catch (err: any) {
+      console.warn('Wishlist load exception handled:', err?.message || err);
+      setItems([]);
     } finally {
       setLoading(false);
     }
