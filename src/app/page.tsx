@@ -45,7 +45,7 @@ export default function HomePage() {
                   Become a Seller
                 </Link>
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all border border-gray-700"
                 >
                   Customer Login

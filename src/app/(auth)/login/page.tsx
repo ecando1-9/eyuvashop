@@ -4,7 +4,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Mail, Lock, User, Store, UserPlus, LogIn, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Mail, Lock, User, Store, UserPlus, LogIn, AlertCircle, Loader2, Phone, Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
 function AuthForm() {
@@ -18,8 +18,10 @@ function AuthForm() {
   // Form State
   const [fullName, setFullName] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Status State
   const [loading, setLoading] = useState(false);
@@ -57,11 +59,13 @@ function AuthForm() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
+          phone: phone ? phone : undefined,
           options: {
             data: {
               full_name: metaName,
               business_name: activeTab === 'merchant' ? businessName : undefined,
               role: role,
+              phone: phone ? phone : undefined,
             },
           },
         });
@@ -212,24 +216,44 @@ function AuthForm() {
       {/* Form */}
       <form className="space-y-4" onSubmit={handleEmailAuth}>
         {isRegister && (
-          <div>
-            <label className="block text-xs font-bold text-[#1E293B] mb-1">
-              {activeTab === 'merchant' ? 'Business / Merchant Name' : 'Full Name'}
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                required
-                value={activeTab === 'merchant' ? businessName : fullName}
-                onChange={(e) =>
-                  activeTab === 'merchant' ? setBusinessName(e.target.value) : setFullName(e.target.value)
-                }
-                placeholder={activeTab === 'merchant' ? 'e.g. Apex Retailers' : 'John Doe'}
-                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
-              />
-              <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+          <>
+            <div>
+              <label className="block text-xs font-bold text-[#1E293B] mb-1">
+                {activeTab === 'merchant' ? 'Business / Merchant Name' : 'Full Name'}
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  value={activeTab === 'merchant' ? businessName : fullName}
+                  onChange={(e) =>
+                    activeTab === 'merchant' ? setBusinessName(e.target.value) : setFullName(e.target.value)
+                  }
+                  placeholder={activeTab === 'merchant' ? 'e.g. Apex Retailers' : 'John Doe'}
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
+                />
+                <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              </div>
             </div>
-          </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#1E293B] mb-1">
+                Phone Number <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  pattern="^[0-9\+\-\s\(\)]{10,15}$"
+                  title="Please enter a valid phone number (10-15 digits)"
+                  placeholder="+91 9876543210"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
+                />
+                <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+              </div>
+            </div>
+          </>
         )}
 
         <div>
@@ -253,14 +277,22 @@ function AuthForm() {
           <label className="block text-xs font-bold text-[#1E293B] mb-1">Password</label>
           <div className="relative">
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
+              className="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
             />
             <Lock className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 

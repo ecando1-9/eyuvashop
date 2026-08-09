@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
   const redirect = searchParams.get('redirect') || '/';
 
   if (code) {
+    // Create the redirect response first
+    const response = NextResponse.redirect(`${origin}${redirect}`);
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
@@ -16,14 +19,22 @@ export async function GET(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // Set cookie on the redirect response
+            response.cookies.set({
+              name,
+              value,
+              ...options,
+            });
+          });
         },
       },
     });
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
+    
     if (!error) {
-      return NextResponse.redirect(`${origin}${redirect}`);
+      return response;
     }
   }
 

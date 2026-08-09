@@ -320,15 +320,29 @@ export default function AccountSettingsPage() {
     if (!user) return;
     setProfileLoading(true);
     try {
+      const cleanPhone = profileForm.phone.trim() || null;
+      const cleanName = profileForm.full_name.trim() || null;
+
+      // Update public database table
       const { error } = await supabase
         .from('users')
         .update({
-          full_name: profileForm.full_name.trim() || null,
-          phone: profileForm.phone.trim() || null,
+          full_name: cleanName,
+          phone: cleanPhone,
           avatar_url: profileForm.avatar_url.trim() || null,
         })
         .eq('id', user.id);
       if (error) throw error;
+
+      // Also sync user phone attribute and metadata into Supabase Auth
+      await supabase.auth.updateUser({
+        ...(cleanPhone ? { phone: cleanPhone } : {}),
+        data: {
+          full_name: cleanName,
+          phone: cleanPhone,
+        },
+      });
+
       await refreshProfile();
       showToast('success', 'Profile updated successfully!');
     } catch (err: any) {

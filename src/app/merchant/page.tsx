@@ -70,7 +70,7 @@ export default function MerchantDashboard() {
           </nav>
         </div>
 
-        <Link href="/auth/login" className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-colors">
+        <Link href="/login" className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-colors">
           <LogOut className="w-4 h-4" /> Exit Seller Hub
         </Link>
       </aside>
