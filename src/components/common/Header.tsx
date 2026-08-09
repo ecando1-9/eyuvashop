@@ -64,10 +64,6 @@ export function Header() {
           <Link href="/merchant" className="hover:text-[#FF6B00] transition-colors flex items-center gap-1 font-medium">
             <Store className="w-3.5 h-3.5" /> Become a Seller
           </Link>
-          <span className="text-gray-600">|</span>
-          <Link href="/admin" className="hover:text-[#FF6B00] transition-colors font-medium">
-            Admin Portal
-          </Link>
         </div>
       </div>
 
@@ -151,10 +147,10 @@ export function Header() {
 
           {/* User Account — Auth Aware */}
           {!mounted || loading ? (
-            <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse hidden sm:block" />
+            <div className="w-9 h-9 rounded-full bg-gray-100 animate-pulse" />
           ) : user ? (
             /* Logged In — User Dropdown */
-            <div className="relative hidden sm:block" ref={menuRef}>
+            <div className="relative" ref={menuRef}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full pl-1 pr-3 py-1 transition-colors group"
@@ -175,7 +171,7 @@ export function Header() {
                     {userInitials}
                   </div>
                 )}
-                <span className="text-xs font-semibold text-gray-700 max-w-[80px] truncate">
+                <span className="text-xs font-semibold text-gray-700 max-w-[80px] truncate hidden sm:inline">
                   {profile?.full_name?.split(' ')[0] || 'Account'}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
@@ -250,9 +246,9 @@ export function Header() {
             /* Not Logged In */
             <Link
               href="/login"
-              className="hidden sm:flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-[#FF6B00] transition-colors shadow"
+              className="flex items-center gap-2 bg-gray-900 text-white px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-semibold hover:bg-[#FF6B00] transition-colors shadow"
             >
-              <User className="w-4 h-4" /> Login
+              <User className="w-4 h-4" /> <span className="hidden sm:inline">Login</span>
             </Link>
           )}
 

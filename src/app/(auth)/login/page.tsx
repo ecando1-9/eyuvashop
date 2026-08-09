@@ -11,9 +11,14 @@ function AuthForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/';
+  const tabParam = searchParams.get('tab');
+  const modeParam = searchParams.get('mode');
 
-  const [activeTab, setActiveTab] = useState<'customer' | 'merchant'>('customer');
-  const [isRegister, setIsRegister] = useState(false);
+  const isMerchantRedirect = redirectPath.startsWith('/merchant') || tabParam === 'merchant';
+  const isRegisterParam = modeParam === 'register' || isMerchantRedirect;
+
+  const [activeTab, setActiveTab] = useState<'customer' | 'merchant'>(isMerchantRedirect ? 'merchant' : 'customer');
+  const [isRegister, setIsRegister] = useState(isRegisterParam);
 
   // Form State
   const [fullName, setFullName] = useState('');
