@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/middleware';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { supabase, response } = await createClient(request);
   const {
     data: { user },
@@ -9,20 +9,19 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Protect account routes
+  // Protect account routes — redirect to /login (the (auth) route group)
   if (pathname.startsWith('/account') && !user) {
-    return NextResponse.redirect(new URL('/login?redirect=' + pathname, request.url));
+    return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
   }
 
   // Protect admin routes
   if (pathname.startsWith('/admin')) {
     if (!user) {
-      return NextResponse.redirect(new URL('/login?redirect=' + pathname, request.url));
+      return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
     }
 
-    // Check if user is admin
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('users')
       .select('role')
       .eq('id', user.id)
       .single();
@@ -30,6 +29,11 @@ export async function middleware(request: NextRequest) {
     if (!profile || profile.role !== 'admin') {
       return NextResponse.redirect(new URL('/', request.url));
     }
+  }
+
+  // Protect merchant routes
+  if (pathname.startsWith('/merchant') && !user) {
+    return NextResponse.redirect(new URL('/login?redirect=' + encodeURIComponent(pathname), request.url));
   }
 
   // Redirect logged-in users away from auth pages
@@ -44,6 +48,7 @@ export const config = {
   matcher: [
     '/account/:path*',
     '/admin/:path*',
+    '/merchant/:path*',
     '/login',
     '/signup',
     '/checkout',
