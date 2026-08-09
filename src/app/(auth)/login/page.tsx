@@ -101,7 +101,32 @@ function AuthForm() {
           },
         });
 
-        if (error) throw error;
+        if (error) {
+          if (error.message?.includes('already registered') || error.message?.includes('already exists')) {
+            // Auto sign-in if email already exists
+            const { data: signData, error: signInErr } = await supabase.auth.signInWithPassword({
+              email,
+              password,
+            });
+            if (!signInErr && signData.user) {
+              await supabase.auth.updateUser({ data: { is_deleted: false, deleted_at: null } });
+              await supabase.from('users').upsert({
+                id: signData.user.id,
+                email: signData.user.email || '',
+                full_name: metaName || signData.user.email?.split('@')[0] || 'User',
+                is_active: true,
+                deleted_at: null,
+              }, { onConflict: 'id' });
+              router.refresh();
+              router.push(role === 'merchant' ? '/merchant' : redirectPath);
+              return;
+            } else {
+              setIsRegister(false);
+              throw new Error('This email is already registered. Please sign in with your password.');
+            }
+          }
+          throw error;
+        }
 
         if (data.session) {
           router.push(role === 'merchant' ? '/merchant' : redirectPath);
@@ -127,7 +152,7 @@ function AuthForm() {
         if (error) throw error;
 
         if (data.user) {
-          // Check if account is deleted
+          // Check if account was deleted, and auto-reactivate cleanly
           const isDeletedMeta = data.user.user_metadata?.is_deleted === true;
 
           const { data: profile } = await supabase
@@ -140,7 +165,8 @@ function AuthForm() {
 
           if (isDeletedMeta || isDeletedProfile) {
             await supabase.auth.signOut();
-            setErrorMsg('This account has been deleted. Access credentials are no longer valid.');
+            setIsRegister(true);
+            setErrorMsg('This account was deleted. Please create a new account to continue.');
             setLoading(false);
             return;
           }
@@ -319,12 +345,12 @@ function AuthForm() {
               <div className="relative">
                 <input
                   type="tel"
-                  maxLength={12}
+                  maxLength={10}
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  pattern="^[0-9\+\-\s\(\)]{10,12}$"
-                  title="Please enter a valid phone number (10-12 digits)"
-                  placeholder="+91 9876543210"
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  pattern="^[0-9]{10}$"
+                  title="Please enter a valid 10-digit mobile number"
+                  placeholder="9876543210"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium focus:outline-none focus:border-[#FF6B00]"
                 />
                 <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />

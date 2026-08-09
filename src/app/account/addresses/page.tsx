@@ -72,37 +72,127 @@ export default function AddressesPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [pincodeLoading, setPincodeLoading] = useState(false);
-  const stateSelectRef = useRef<HTMLSelectElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const addressLine1Ref = useRef<HTMLInputElement>(null);
+  const addressLine2Ref = useRef<HTMLInputElement>(null);
+  const areaInputRef = useRef<HTMLInputElement>(null);
+  const landmarkInputRef = useRef<HTMLInputElement>(null);
+  const cityInputRef = useRef<HTMLInputElement>(null);
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = createClient();
+
+  // Instant Offline Indian Postal Zone Map (0ms latency fallback)
+  const getOfflineStateFromPin = (pin: string): string | null => {
+    const prefix2 = pin.slice(0, 2);
+    if (['50', '51', '52', '53'].includes(prefix2)) return pin.startsWith('50') ? 'Telangana' : 'Andhra Pradesh';
+    if (['56', '57', '58', '59'].includes(prefix2)) return 'Karnataka';
+    if (['40', '41', '42', '43', '44'].includes(prefix2)) return 'Maharashtra';
+    if (['11'].includes(prefix2)) return 'Delhi';
+    if (['60', '61', '62', '63', '64'].includes(prefix2)) return 'Tamil Nadu';
+    if (['70', '71', '72', '73'].includes(prefix2)) return 'West Bengal';
+    if (['38', '39'].includes(prefix2)) return 'Gujarat';
+    if (['30', '31', '32', '33', '34'].includes(prefix2)) return 'Rajasthan';
+    if (['20', '21', '22', '23', '24', '25', '26', '27', '28'].includes(prefix2)) return 'Uttar Pradesh';
+    if (['14', '15', '16'].includes(prefix2)) return 'Punjab';
+    if (['12', '13'].includes(prefix2)) return 'Haryana';
+    if (['67', '68', '69'].includes(prefix2)) return 'Kerala';
+    if (['80', '81', '82', '83', '84', '85'].includes(prefix2)) return 'Bihar';
+    if (['75', '76', '77'].includes(prefix2)) return 'Odisha';
+    if (['45', '46', '47', '48'].includes(prefix2)) return 'Madhya Pradesh';
+    if (['78', '79'].includes(prefix2)) return 'Assam';
+    return null;
+  };
+
+  // Instant Offline City Map for popular postal hubs
+  const getOfflineCityFromPin = (pin: string): string | null => {
+    if (pin.startsWith('500') || pin.startsWith('501')) return 'Hyderabad';
+    if (pin.startsWith('530')) return 'Visakhapatnam';
+    if (pin.startsWith('520')) return 'Vijayawada';
+    if (pin.startsWith('560') || pin.startsWith('561') || pin.startsWith('562')) return 'Bengaluru';
+    if (pin.startsWith('400') || pin.startsWith('401')) return 'Mumbai';
+    if (pin.startsWith('411')) return 'Pune';
+    if (pin.startsWith('110')) return 'New Delhi';
+    if (pin.startsWith('600')) return 'Chennai';
+    if (pin.startsWith('700')) return 'Kolkata';
+    if (pin.startsWith('380')) return 'Ahmedabad';
+    if (pin.startsWith('302')) return 'Jaipur';
+    if (pin.startsWith('201')) return 'Noida';
+    if (pin.startsWith('122')) return 'Gurugram';
+    if (pin.startsWith('160')) return 'Chandigarh';
+    return null;
+  };
 
   const handlePinCodeChange = async (val: string) => {
     const cleanPin = val.replace(/\D/g, '').slice(0, 6);
     f('postal_code', cleanPin);
 
-    if (cleanPin.length === 6) {
-      // Auto-focus next field (State select)
-      setTimeout(() => {
-        stateSelectRef.current?.focus();
-      }, 100);
+    // Instant 0ms state & city pre-population based on postal zone
+    const instantState = getOfflineStateFromPin(cleanPin);
+    if (instantState) f('state', instantState);
 
-      // Auto lookup City & State from Indian Postal PIN Code API
+    const instantCity = getOfflineCityFromPin(cleanPin);
+    if (instantCity) f('city', instantCity);
+
+    if (cleanPin.length === 6) {
+      setPincodeLoading(true);
+
+      // Fast CDN API (zippopotam.us)
+      const fetchZippo = async () => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 1200);
+        try {
+          const res = await fetch(`https://api.zippopotam.us/IN/${cleanPin}`, { signal: controller.signal });
+          clearTimeout(tid);
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data?.places?.[0]) {
+            const place = data.places[0];
+            const cityVal = place['place name'] !== 'NA' ? place['place name'] : null;
+            return { city: cityVal, state: place['state'] };
+          }
+        } catch {
+          // ignore timeout
+        }
+        return null;
+      };
+
+      // Government API with robust District/Block/Name extraction
+      const fetchGov = async () => {
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 1500);
+        try {
+          const res = await fetch(`https://api.postalpincode.in/pincode/${cleanPin}`, { signal: controller.signal });
+          clearTimeout(tid);
+          if (!res.ok) return null;
+          const data = await res.json();
+          if (data?.[0]?.Status === 'Success' && data[0].PostOffice?.length > 0) {
+            const po = data[0].PostOffice[0];
+            const cityVal = po.District && po.District !== 'NA' 
+              ? po.District 
+              : (po.Block && po.Block !== 'NA' ? po.Block : po.Name);
+            return { city: cityVal, state: po.State };
+          }
+        } catch {
+          // ignore timeout
+        }
+        return null;
+      };
+
       try {
-        setPincodeLoading(true);
-        const res = await fetch(`https://api.postalpincode.in/pincode/${cleanPin}`);
-        const data = await res.json();
-        if (data?.[0]?.Status === 'Success' && data[0].PostOffice?.length > 0) {
-          const po = data[0].PostOffice[0];
-          if (po.District) f('city', po.District);
-          if (po.State) {
+        const result = await fetchGov() || await fetchZippo();
+
+        if (result) {
+          if (result.city && result.city !== 'NA') f('city', result.city);
+          if (result.state) {
             const matchedState = INDIAN_STATES.find(
-              (s) => s.toLowerCase() === po.State.toLowerCase()
+              (s) => s.toLowerCase() === result.state.toLowerCase()
             );
             if (matchedState) f('state', matchedState);
           }
         }
       } catch {
-        // Fallback gracefully
+        // Graceful fallback to offline map
       } finally {
         setPincodeLoading(false);
       }
@@ -144,17 +234,21 @@ export default function AddressesPage() {
     const errors: Record<string, string> = {};
     if (!form.full_name.trim()) errors.full_name = 'Name is required';
     
-    const cleanPhone = form.phone.replace(/\D/g, '');
-    if (!cleanPhone || cleanPhone.length < 10 || cleanPhone.length > 12) {
-      errors.phone = 'Enter valid 10 to 12 digit mobile number';
+    const cleanPhone = form.phone.replace(/\D/g, '').slice(0, 10);
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      errors.phone = 'Enter valid 10-digit mobile number';
     }
 
-    if (!form.address_line1.trim()) errors.address_line1 = 'Address line 1 is required';
+    if (!form.address_line1.trim() || form.address_line1.trim().length < 5) {
+      errors.address_line1 = 'Address Line 1 must be at least 5 characters';
+    }
     if (!form.city.trim()) errors.city = 'City is required';
     if (!form.state) errors.state = 'State is required';
     
-    const cleanPin = form.postal_code.replace(/\D/g, '');
-    if (cleanPin.length !== 6) errors.postal_code = 'Enter valid 6-digit PIN code';
+    const cleanPin = form.postal_code.replace(/\D/g, '').slice(0, 6);
+    if (!cleanPin || cleanPin.length !== 6) {
+      errors.postal_code = 'PIN code must be exactly 6 digits';
+    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -194,7 +288,23 @@ export default function AddressesPage() {
       setSaving(true);
       setError(null);
 
-      // If setting as default, remove default from all others first
+      // 1. Ensure user row exists in public.users to satisfy foreign key constraint
+      const { error: uErr } = await supabase.from('users').update({
+        full_name: form.full_name.trim() || user!.user_metadata?.full_name || 'User',
+      }).eq('id', user!.id);
+
+      if (uErr) {
+        await supabase.from('users').upsert(
+          {
+            id: user!.id,
+            email: user!.email || '',
+            full_name: form.full_name.trim() || user!.user_metadata?.full_name || 'User',
+          },
+          { onConflict: 'id' }
+        );
+      }
+
+      // 2. If setting as default, remove default from all others first
       if (form.is_default) {
         await supabase
           .from('addresses')
@@ -413,66 +523,179 @@ export default function AddressesPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
+                {/* Full Name */}
                 <div className="col-span-2 sm:col-span-1">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Full Name *</label>
-                  <input className={inputClass('full_name')} maxLength={34} value={form.full_name} onChange={(e) => f('full_name', e.target.value)} placeholder="Yuva Kiran" />
+                  <input
+                    className={inputClass('full_name')}
+                    maxLength={34}
+                    value={form.full_name}
+                    onChange={(e) => f('full_name', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        phoneInputRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Yuva Kiran"
+                  />
                   {formErrors.full_name && <p className="text-xs text-red-500 mt-1">{formErrors.full_name}</p>}
                 </div>
+
+                {/* Mobile Number */}
                 <div className="col-span-2 sm:col-span-1">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">Mobile Number *</label>
-                  <input className={inputClass('phone')} maxLength={12} value={form.phone} onChange={(e) => f('phone', e.target.value)} placeholder="9XXXXXXXXX" />
+                  <input
+                    ref={phoneInputRef}
+                    className={inputClass('phone')}
+                    maxLength={10}
+                    value={form.phone}
+                    onChange={(e) => f('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        pinInputRef.current?.focus();
+                      }
+                    }}
+                    placeholder="9XXXXXXXXX"
+                  />
                   {formErrors.phone && <p className="text-xs text-red-500 mt-1">{formErrors.phone}</p>}
                 </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 1 *</label>
-                  <input className={inputClass('address_line1')} maxLength={120} value={form.address_line1} onChange={(e) => f('address_line1', e.target.value)} placeholder="House No, Building, Street" />
-                  {formErrors.address_line1 && <p className="text-xs text-red-500 mt-1">{formErrors.address_line1}</p>}
-                </div>
-                <div className="col-span-2">
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 2</label>
-                  <input className={inputClass('address_line2')} maxLength={120} value={form.address_line2} onChange={(e) => f('address_line2', e.target.value)} placeholder="Apartment, Floor (optional)" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Area / Locality</label>
-                  <input className={inputClass('area')} maxLength={80} value={form.area} onChange={(e) => f('area', e.target.value)} placeholder="Colony / Locality" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">Landmark</label>
-                  <input className={inputClass('landmark')} maxLength={80} value={form.landmark} onChange={(e) => f('landmark', e.target.value)} placeholder="Near hospital..." />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 mb-1 block">City *</label>
-                  <input className={inputClass('city')} maxLength={50} value={form.city} onChange={(e) => f('city', e.target.value)} placeholder="Hyderabad" />
-                  {formErrors.city && <p className="text-xs text-red-500 mt-1">{formErrors.city}</p>}
-                </div>
-                <div>
+
+                {/* PIN Code */}
+                <div className="col-span-2 sm:col-span-1">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-gray-700 block">PIN Code *</label>
                     {pincodeLoading && (
-                      <span className="text-[10px] text-[#FF6B00] font-bold animate-pulse">Auto-fetching City & State...</span>
+                      <span className="text-[10px] text-[#FF6B00] font-bold animate-pulse">Auto-fetching...</span>
                     )}
                   </div>
                   <input
+                    ref={pinInputRef}
+                    type="text"
+                    inputMode="numeric"
                     className={inputClass('postal_code')}
                     maxLength={6}
                     value={form.postal_code}
-                    onChange={(e) => handlePinCodeChange(e.target.value)}
+                    onChange={(e) => handlePinCodeChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addressLine1Ref.current?.focus();
+                      }
+                    }}
                     placeholder="500001"
                   />
                   {formErrors.postal_code && <p className="text-xs text-red-500 mt-1">{formErrors.postal_code}</p>}
                 </div>
+
+                {/* City */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">City *</label>
+                  <input
+                    ref={cityInputRef}
+                    className={inputClass('city')}
+                    maxLength={50}
+                    value={form.city}
+                    onChange={(e) => f('city', e.target.value)}
+                    placeholder="Hyderabad"
+                  />
+                  {formErrors.city && <p className="text-xs text-red-500 mt-1">{formErrors.city}</p>}
+                </div>
+
+                {/* State (Auto-filled from PIN Code) */}
                 <div className="col-span-2">
                   <label className="text-xs font-bold text-gray-700 mb-1 block">State *</label>
-                  <select
-                    ref={stateSelectRef}
-                    className={inputClass('state')}
-                    value={form.state}
-                    onChange={(e) => f('state', e.target.value)}
-                  >
-                    <option value="">Select State</option>
-                    {INDIAN_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  <input
+                    type="text"
+                    readOnly
+                    tabIndex={-1}
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 text-gray-700 font-semibold rounded-xl text-sm cursor-not-allowed"
+                    value={form.state || (form.postal_code?.length === 6 ? 'Auto-detecting state...' : 'Auto-filled from PIN Code')}
+                    placeholder="Auto-filled from PIN Code"
+                  />
                   {formErrors.state && <p className="text-xs text-red-500 mt-1">{formErrors.state}</p>}
+                </div>
+
+                {/* Address Line 1 */}
+                <div className="col-span-2">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 1 *</label>
+                  <textarea
+                    ref={addressLine1Ref as any}
+                    rows={2}
+                    className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl text-sm resize-none focus:outline-none focus:border-[#FF6B00] focus:bg-white transition-all min-h-[58px] ${
+                      formErrors.address_line1 ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                    maxLength={140}
+                    value={form.address_line1}
+                    onChange={(e) => f('address_line1', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        addressLine2Ref.current?.focus();
+                      }
+                    }}
+                    placeholder="House No, Building Name, Street / Road"
+                  />
+                  {formErrors.address_line1 && <p className="text-xs text-red-500 mt-1">{formErrors.address_line1}</p>}
+                </div>
+
+                {/* Address Line 2 */}
+                <div className="col-span-2">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">Address Line 2</label>
+                  <textarea
+                    ref={addressLine2Ref as any}
+                    rows={2}
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:border-[#FF6B00] focus:bg-white transition-all min-h-[58px]"
+                    maxLength={140}
+                    value={form.address_line2}
+                    onChange={(e) => f('address_line2', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        areaInputRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Apartment, Suite, Unit, Floor (optional)"
+                  />
+                </div>
+
+                {/* Area / Locality */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">Area / Locality</label>
+                  <input
+                    ref={areaInputRef}
+                    className={inputClass('area')}
+                    maxLength={80}
+                    value={form.area}
+                    onChange={(e) => f('area', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        landmarkInputRef.current?.focus();
+                      }
+                    }}
+                    placeholder="Colony / Locality"
+                  />
+                </div>
+
+                {/* Landmark */}
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="text-xs font-bold text-gray-700 mb-1 block">Landmark</label>
+                  <input
+                    ref={landmarkInputRef}
+                    className={inputClass('landmark')}
+                    maxLength={80}
+                    value={form.landmark}
+                    onChange={(e) => f('landmark', e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSave();
+                      }
+                    }}
+                    placeholder="Near hospital..."
+                  />
                 </div>
               </div>
 

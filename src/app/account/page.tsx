@@ -194,16 +194,20 @@ export default function AccountDashboard() {
       {/* Mobile Profile Card */}
       <div className="md:hidden bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[#FF6B00] text-white flex items-center justify-center font-black text-2xl shadow-md flex-shrink-0">
+          <div className="w-16 h-16 rounded-2xl bg-[#FF6B00] text-white flex items-center justify-center font-black text-2xl shadow-md flex-shrink-0 overflow-hidden relative">
             {profile?.avatar_url ? (
-              <Image src={profile.avatar_url} alt="Avatar" fill unoptimized className="object-cover rounded-2xl" />
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={profile.avatar_url} alt="Avatar" className="w-full h-full object-cover rounded-2xl" />
             ) : (
               (profile?.full_name?.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) ||
+                user?.user_metadata?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) ||
                 user?.email?.slice(0, 2).toUpperCase() || 'U')
             )}
           </div>
           <div>
-            <h2 className="font-extrabold text-gray-900">{profile?.full_name || user?.email?.split('@')[0]}</h2>
+            <h2 className="font-extrabold text-gray-900">
+              {profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0]}
+            </h2>
             <p className="text-xs text-gray-400">{user?.email}</p>
             <div className="flex items-center gap-1.5 mt-1">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />

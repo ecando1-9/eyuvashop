@@ -178,96 +178,7 @@ const disabledInputCls =
 // Delete Modal
 // ---------------------------------------------------------------------------
 
-function DeleteModal({
-  onClose,
-  onConfirm,
-  loading,
-}: {
-  onClose: () => void;
-  onConfirm: () => void;
-  loading: boolean;
-}) {
-  const [typed, setTyped] = useState('');
-  const confirmed = typed.trim().toLowerCase() === 'delete my account';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 bg-red-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-            <Trash2 className="w-5 h-5 text-red-600" />
-          </div>
-          <div>
-            <h2 className="font-extrabold text-gray-900">Delete Account</h2>
-            <p className="text-xs text-gray-500">This action cannot be undone</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="ml-auto text-gray-400 hover:text-gray-600 p-1"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Warning */}
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-4 space-y-2 mb-5">
-          <p className="text-sm font-bold text-red-700 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            Before you proceed, please understand:
-          </p>
-          <ul className="text-xs text-red-600 space-y-1.5 pl-6 list-disc">
-            <li>Your profile, preferences, and personal data will be removed.</li>
-            <li>Active orders will be cancelled where possible.</li>
-            <li>Your wishlist, reviews, and saved addresses will be deleted.</li>
-            <li>
-              <strong>Order history and financial/invoice records may be
-              retained for up to 7 years</strong> as required by applicable tax
-              and accounting regulations (GST Act, IT Act).
-            </li>
-            <li>You will be immediately signed out and cannot recover this account.</li>
-          </ul>
-        </div>
-
-        {/* Confirmation input */}
-        <div className="mb-5">
-          <label className="block text-xs font-bold text-gray-500 mb-1.5">
-            Type <span className="text-red-600 font-mono">delete my account</span> to confirm
-          </label>
-          <input
-            type="text"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder="delete my account"
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
-          />
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={!confirmed || loading}
-            className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            {loading ? 'Processing…' : 'Delete Account'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // TABS CONFIG
@@ -290,7 +201,6 @@ export default function AccountSettingsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [toast, setToast] = useState<ToastMsg | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const showToast = useCallback((type: ToastMsg['type'], text: string) => {
     setToast({ type, text });
@@ -318,6 +228,17 @@ export default function AccountSettingsPage() {
     }
   }, [profile, user]);
 
+function formatImageUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  // Convert Google Drive share link (e.g. drive.google.com/file/d/ID/view) to direct CDN image URL
+  const driveMatch = trimmed.match(/\/file\/d\/([^\/]+)/) || trimmed.match(/id=([^&]+)/);
+  if (trimmed.includes('drive.google.com') && driveMatch && driveMatch[1]) {
+    return `https://lh3.googleusercontent.com/d/${driveMatch[1]}`;
+  }
+  return trimmed;
+}
+
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -333,7 +254,7 @@ export default function AccountSettingsPage() {
     setProfileLoading(true);
     try {
       const cleanPhone = profileForm.phone.trim() || null;
-      const cleanAvatar = profileForm.avatar_url.trim() || null;
+      const cleanAvatar = formatImageUrl(profileForm.avatar_url) || null;
 
       setAvatarPreviewError(false);
 
@@ -515,47 +436,7 @@ export default function AccountSettingsPage() {
     }
   };
 
-  // -------------------------------------------------------------------------
-  // Delete Account
-  // -------------------------------------------------------------------------
-  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    setDeleteLoading(true);
-    try {
-      const nowIso = new Date().toISOString();
-
-      // 1. Mark public.users table as soft-deleted and inactive
-      await supabase
-        .from('users')
-        .update({
-          deleted_at: nowIso,
-          is_active: false,
-        })
-        .eq('id', user.id);
-
-      // 2. Flag auth user metadata as is_deleted: true
-      await supabase.auth.updateUser({
-        data: {
-          is_deleted: true,
-          deleted_at: nowIso,
-        },
-      });
-
-      showToast(
-        'success',
-        'Your account has been deleted. You will be signed out now.'
-      );
-      await new Promise((r) => setTimeout(r, 1500));
-      await signOut();
-    } catch (err: any) {
-      showToast('error', err?.message ?? 'Failed to delete account.');
-    } finally {
-      setDeleteLoading(false);
-      setShowDeleteModal(false);
-    }
-  };
 
   // -------------------------------------------------------------------------
   // Auth guard / skeleton
@@ -579,7 +460,7 @@ export default function AccountSettingsPage() {
     );
   }
 
-  const avatarUrl = profileForm.avatar_url.trim();
+  const avatarUrl = formatImageUrl(profileForm.avatar_url);
   const initials =
     profile?.full_name
       ?.split(' ')
@@ -596,13 +477,6 @@ export default function AccountSettingsPage() {
   return (
     <>
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
-      {showDeleteModal && (
-        <DeleteModal
-          onClose={() => setShowDeleteModal(false)}
-          onConfirm={handleDeleteAccount}
-          loading={deleteLoading}
-        />
-      )}
 
       <div className="space-y-6 max-w-2xl mx-auto">
         {/* Page heading */}
@@ -707,7 +581,7 @@ export default function AccountSettingsPage() {
                     type="tel"
                     value={profileForm.phone}
                     onChange={(e) =>
-                      setProfileForm((f) => ({ ...f, phone: e.target.value }))
+                      setProfileForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))
                     }
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -715,9 +589,9 @@ export default function AccountSettingsPage() {
                         avatarInputRef.current?.focus();
                       }
                     }}
-                    placeholder="+91 9876543210"
+                    placeholder="9876543210"
                     className={inputCls}
-                    maxLength={12}
+                    maxLength={10}
                   />
                 </Field>
 
@@ -956,36 +830,6 @@ export default function AccountSettingsPage() {
                 </Link>
               </div>
             </Section>
-
-            {/* Danger Zone */}
-            <div className="bg-white rounded-2xl border border-red-100 shadow-sm p-6">
-              <div className="mb-4">
-                <h3 className="font-bold text-red-700 text-base flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4" />
-                  Danger Zone
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  These actions are irreversible. Please proceed with caution.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-red-50 border border-red-100 rounded-2xl p-4">
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Delete My Account</p>
-                  <p className="text-xs text-gray-500 mt-0.5 max-w-xs">
-                    Permanently remove your account and personal data. Some financial
-                    records may be retained per legal requirements.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="flex items-center gap-2 border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all flex-shrink-0"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete Account
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>

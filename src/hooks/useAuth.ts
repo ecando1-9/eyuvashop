@@ -46,14 +46,32 @@ export function useAuth(): UseAuthReturn {
 
       const profileObj = profileRes.data ? (profileRes.data as UserProfile) : null;
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const metaName = currentUser?.user_metadata?.full_name;
-      const metaAvatar = currentUser?.user_metadata?.avatar_url;
+      const metaName = currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name;
+      const metaAvatar = currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || currentUser?.user_metadata?.avatarUrl || null;
+
+      // If user was previously soft-deleted and logs in again, reactivate public.users row
+      if (currentUser && (profileObj?.deleted_at || currentUser?.user_metadata?.is_deleted)) {
+        await supabase.from('users').upsert({
+          id: userId,
+          email: currentUser.email || '',
+          full_name: metaName || currentUser.email?.split('@')[0] || 'User',
+          avatar_url: metaAvatar,
+          is_active: true,
+          deleted_at: null,
+        }, { onConflict: 'id' });
+
+        await supabase.auth.updateUser({
+          data: { is_deleted: false, deleted_at: null }
+        });
+      }
 
       const finalProfile: UserProfile = profileObj
         ? {
             ...profileObj,
             full_name: profileObj.full_name || metaName || currentUser?.email?.split('@')[0] || 'User',
             avatar_url: profileObj.avatar_url || metaAvatar,
+            deleted_at: undefined,
+            is_active: true,
           }
         : {
             id: userId,
