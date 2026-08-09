@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Plus, Edit2, Trash2, Star, Home, Briefcase, MoreVertical, AlertTriangle } from 'lucide-react';
+import { MapPin, Plus, Edit2, Trash2, Star, Home, Briefcase, MoreVertical, AlertTriangle, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { EmptyState } from '@/components/account/EmptyState';
@@ -491,15 +491,24 @@ export default function AddressesPage() {
 
       {/* Address Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-white px-6 pt-6 pb-4 border-b border-gray-100 rounded-t-3xl">
-              <h2 className="font-extrabold text-gray-900 text-lg">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[100] flex items-end sm:items-center justify-center p-3 sm:p-4 pb-20 sm:pb-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg max-h-[80vh] sm:max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100 animate-in slide-in-from-bottom duration-200">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white px-6 pt-5 pb-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0 z-20">
+              <h2 className="font-extrabold text-gray-900 text-base sm:text-lg">
                 {editingId ? 'Edit Address' : 'Add New Address'}
               </h2>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                aria-label="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 pb-10">
               {/* Address Type */}
               <div>
                 <label className="text-xs font-bold text-gray-700 mb-2 block">Address Type</label>
@@ -709,18 +718,20 @@ export default function AddressesPage() {
               </label>
             </div>
 
-            {/* Form Actions */}
-            <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-100 rounded-b-3xl flex gap-3">
+            {/* Sticky Form Actions Footer */}
+            <div className="sticky bottom-0 bg-white px-6 py-3.5 sm:py-4 border-t border-gray-100 flex gap-3 flex-shrink-0 z-30 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
               <button
+                type="button"
                 onClick={() => setShowForm(false)}
-                className="flex-1 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-50 transition-colors"
+                className="flex-1 border border-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-50 active:scale-95 transition-all"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex-1 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50"
+                className="flex-1 bg-[#FF6B00] hover:bg-orange-600 active:scale-95 text-white font-bold py-3 rounded-xl text-sm transition-all disabled:opacity-50 shadow-md shadow-orange-500/20"
               >
                 {saving ? 'Saving...' : editingId ? 'Update Address' : 'Save Address'}
               </button>

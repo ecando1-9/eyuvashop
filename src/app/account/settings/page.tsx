@@ -66,7 +66,7 @@ function Toast({ msg, onClose }: { msg: ToastMsg; onClose: () => void }) {
 
   return (
     <div
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold transition-all
+      className={`fixed bottom-24 sm:bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm font-semibold transition-all
         ${msg.type === 'success'
           ? 'bg-emerald-500 text-white'
           : 'bg-red-500 text-white'

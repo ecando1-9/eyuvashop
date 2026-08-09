@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { SignOutModal } from '@/components/common/SignOutModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ export default function SecurityPage() {
 
   // Sign-out state
   const [signOutLoading, setSignOutLoading] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -254,10 +256,14 @@ export default function SecurityPage() {
 
   const handleSignOutAllDevices = async () => {
     setSignOutLoading(true);
-    await supabase.auth.signOut({ scope: 'global' });
-    setSignOutLoading(false);
-    await signOut();
-    router.push('/login');
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+      await signOut();
+      router.push('/login');
+    } finally {
+      setSignOutLoading(false);
+      setShowSignOutModal(false);
+    }
   };
 
   // ── Loading skeleton ───────────────────────────────────────────────────────
@@ -428,9 +434,9 @@ export default function SecurityPage() {
           you to the login page.
         </p>
         <button
-          onClick={handleSignOutAllDevices}
+          onClick={() => setShowSignOutModal(true)}
           disabled={signOutLoading}
-          className="inline-flex items-center gap-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 disabled:opacity-60 px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-red-300"
+          className="inline-flex items-center gap-2 rounded-lg bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 disabled:opacity-60 px-5 py-2.5 text-sm font-semibold transition active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-300"
         >
           {signOutLoading ? (
             <>
@@ -445,6 +451,14 @@ export default function SecurityPage() {
           )}
         </button>
       </SectionCard>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutModal
+        isOpen={showSignOutModal}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={handleSignOutAllDevices}
+        loading={signOutLoading}
+      />
 
       {/* ── 5. Two-Factor Authentication ──────────────────────────────────── */}
       <SectionCard title="Two-Factor Authentication" icon={<Shield size={18} />}>
