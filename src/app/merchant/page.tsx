@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search, Clock, AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search, Clock, AlertTriangle, ShieldCheck, Lock, Menu, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +20,7 @@ export default function MerchantDashboard() {
   const [businessName, setBusinessName] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -42,7 +43,18 @@ export default function MerchantDashboard() {
     loadMerchantData();
   }, [user, supabase]);
 
-  const merchantName = businessName || profile?.full_name || user?.email?.split('@')[0] || "Merchant Store";
+  const merchantName = businessName || profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Merchant Store";
+  const userAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || null;
+  const [avatarError, setAvatarError] = useState(false);
+
+  const formatImageUrl = (url: string | null | undefined): string => {
+    if (!url) return '';
+    if (url.includes('drive.google.com/file/d/')) {
+      const id = url.split('/d/')[1]?.split('/')[0];
+      if (id) return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+    return url;
+  };
 
   const sidebarNav = [
     { label: 'Dashboard', icon: LayoutDashboard, active: true },
@@ -117,23 +129,46 @@ export default function MerchantDashboard() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 bg-gray-50">
         {/* Top Header */}
-        <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shadow-xs">
+        <header className="h-16 bg-white border-b border-gray-200 px-4 md:px-6 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="relative w-7 h-7 rounded-lg overflow-hidden lg:hidden border border-gray-100">
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 text-gray-700 hover:text-[#FF6B00] bg-orange-50 hover:bg-orange-100 rounded-xl border border-orange-200 lg:hidden transition-all active:scale-95 shadow-xs"
+              aria-label="Toggle mobile seller menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+
+            <div className="relative w-7 h-7 rounded-lg overflow-hidden lg:hidden border border-gray-100 shrink-0">
               <Image src={LOGO_URL} alt="eYuvashop Logo" fill className="object-cover" />
             </div>
-            <h1 className="font-black text-lg text-[#0B1E3D]">Seller Dashboard</h1>
+            <h1 className="font-black text-base sm:text-lg text-[#0B1E3D] truncate">Seller Dashboard</h1>
           </div>
 
           <div className="flex items-center gap-4">
             <button className="p-2 text-gray-500 hover:text-[#FF6B00] bg-gray-100 rounded-xl relative">
               <Bell className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-4">
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center font-bold text-xs text-[#FF6B00]">
-                {merchantName.substring(0, 2).toUpperCase()}
+            <div className="flex items-center gap-2.5 border-l border-gray-200 pl-4">
+              <div className="relative w-8 h-8 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+                {userAvatar && !avatarError ? (
+                  <img
+                    src={formatImageUrl(userAvatar)}
+                    alt={merchantName}
+                    className="w-full h-full object-cover"
+                    onError={() => setAvatarError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-[#FF6B00] text-white flex items-center justify-center font-black text-xs">
+                    {merchantName.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
               </div>
-              <span className="text-xs font-bold text-gray-800">{merchantName}</span>
+              <div className="hidden sm:block">
+                <span className="text-xs font-bold text-gray-800 block truncate max-w-[140px]">{merchantName}</span>
+                <span className="text-[10px] text-gray-400 font-medium block">Seller Account</span>
+              </div>
             </div>
           </div>
         </header>
@@ -281,6 +316,104 @@ export default function MerchantDashboard() {
           </div>
         </div>
       </main>
+
+      {/* Mobile Navigation Drawer Backdrop & Menu Container */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex">
+          {/* Dark Overlay Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          {/* Drawer Sliding Panel with Full 4-Side Glowing Border */}
+          <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between p-5 border-r-2 border-[#FF6B00] z-50 overflow-y-auto animate-in slide-in-from-left duration-200">
+            <div className="space-y-5">
+              {/* Header inside Mobile Drawer */}
+              <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                <Link href="/" className="flex items-center gap-2.5">
+                  <div className="relative w-8 h-8 rounded-xl overflow-hidden shadow-xs border border-gray-100 shrink-0">
+                    <Image src={LOGO_URL} alt="eYuvashop Logo" fill className="object-cover" />
+                  </div>
+                  <span className="font-extrabold text-base tracking-tight italic">
+                    <span className="text-[#FF6B00] not-italic">e</span>
+                    <span className="text-[#1E293B]">YuvaShop</span>
+                  </span>
+                </Link>
+                <button
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:text-gray-900"
+                  aria-label="Close mobile seller menu"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Seller Profile Banner inside Drawer */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-zinc-900 to-black text-white shadow-md border-2 border-[#FF6B00] shadow-orange-500/20 flex items-center gap-3">
+                <div className="relative w-10 h-10 rounded-xl overflow-hidden border border-[#FF6B00] bg-[#FF6B00] flex items-center justify-center font-black text-xs text-white shrink-0">
+                  {userAvatar && !avatarError ? (
+                    <img
+                      src={formatImageUrl(userAvatar)}
+                      alt={merchantName}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarError(true)}
+                    />
+                  ) : (
+                    merchantName.substring(0, 2).toUpperCase()
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-extrabold text-white truncate">{merchantName}</p>
+                  <span className="inline-block bg-emerald-500/20 text-emerald-300 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border border-emerald-500/30 mt-0.5">
+                    Seller Hub Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Drawer Navigation List */}
+              <nav className="space-y-1">
+                {sidebarNav.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.label}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        item.active
+                          ? 'bg-[#FF6B00] text-white shadow-md'
+                          : 'text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4 h-4" /> {item.label}
+                      </div>
+                      {item.badge && (
+                        <span className="bg-orange-100 text-[#FF6B00] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* Exit Seller Hub Button inside Mobile Drawer */}
+            <div className="pt-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setShowSignOutModal(true);
+                }}
+                className="flex items-center gap-2 text-xs font-bold text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-colors w-full text-left"
+              >
+                <LogOut className="w-4 h-4" /> Exit Seller Hub
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

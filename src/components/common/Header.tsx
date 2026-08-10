@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Search, ShoppingBag, Heart, Bell, User, Store, Menu, X,
-  Package, MapPin, Settings, LogOut, ChevronDown, ChevronRight, Shield, Grid,
+  Package, MapPin, Settings, LogOut, ChevronDown, ChevronRight, Shield, ShieldAlert, Grid,
 } from 'lucide-react';
 import { useCartStore } from '@/hooks/useCartStore';
 import { useWishlistStore } from '@/hooks/useWishlistStore';
@@ -19,6 +19,7 @@ export function Header() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [mounted, setMounted] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -198,92 +199,191 @@ export function Header() {
             </Link>
           ) : user ? (
             <>
-              {/* Logged In — User Dropdown (Hidden on mobile, visible on desktop) */}
+              {/* Logged In — User Dropdown (PC & Tablet) */}
               <div className="relative hidden md:block" ref={menuRef}>
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-full pl-1 pr-3 py-1 transition-colors group"
+                  className="flex items-center gap-2 bg-gray-50 hover:bg-orange-50/50 border-2 border-[#FF6B00] rounded-full pl-1 pr-3 py-1 transition-all shadow-sm hover:shadow-orange-500/20 active:scale-95 group"
                   aria-label="User menu"
                   aria-expanded={userMenuOpen}
                 >
-                  {profile?.avatar_url ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={profile.avatar_url}
-                      alt={profile.full_name || 'User'}
-                      className="rounded-full object-cover w-8 h-8 flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#FF6B00] text-white flex items-center justify-center font-extrabold text-xs flex-shrink-0">
-                      {userInitials}
-                    </div>
-                  )}
-                  <span className="text-xs font-extrabold text-gray-800 hidden md:inline truncate max-w-[120px]">
-                    {profile?.full_name?.split(' ')[0] || user.user_metadata?.full_name?.split(' ')[0] || user.email?.split('@')[0]}
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden border border-white shadow-xs bg-gray-100 flex items-center justify-center font-extrabold text-xs flex-shrink-0">
+                    {userAvatar && !avatarError ? (
+                      <img
+                        src={formatImageUrl(userAvatar)}
+                        alt={userDisplayName}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarError(true)}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-[#FF6B00] text-white flex items-center justify-center font-extrabold text-xs">
+                        {userInitials}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-extrabold text-gray-800 hidden md:inline truncate max-w-[110px] group-hover:text-[#FF6B00]">
+                    {userDisplayName.split(' ')[0]}
                   </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-200 ${userMenuOpen ? 'rotate-180 text-[#FF6B00]' : ''}`} />
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* PC / Tablet Dropdown Menu Container (Full 4-Side Glowing Orange Border) */}
                 {userMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-bold text-gray-900 truncate">
-                        {profile?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0]}
-                      </p>
-                      <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  <div className="absolute right-0 mt-3 w-72 bg-white rounded-2xl shadow-2xl border-2 border-[#FF6B00] overflow-hidden z-50 animate-in fade-in slide-in-from-top-3 duration-200 shadow-orange-500/20">
+                    {/* Header Glassmorphism Banner */}
+                    <div className="bg-gradient-to-br from-slate-900 via-zinc-900 to-black text-white p-4 relative overflow-hidden border-b border-white/10">
+                      {/* Ambient Orange Glow */}
+                      <div className="absolute -right-6 -top-6 w-20 h-20 bg-[#FF6B00]/30 rounded-full blur-xl pointer-events-none" />
+
+                      <div className="relative z-10 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden border-2 border-[#FF6B00] shadow-md bg-gray-100 flex items-center justify-center font-black text-sm text-white shrink-0">
+                          {userAvatar && !avatarError ? (
+                            <img
+                              src={formatImageUrl(userAvatar)}
+                              alt={userDisplayName}
+                              className="w-full h-full object-cover"
+                              onError={() => setAvatarError(true)}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-[#FF6B00] text-white flex items-center justify-center font-black text-sm">
+                              {userInitials}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-extrabold text-white truncate">{userDisplayName}</p>
+                            <span className="bg-emerald-500/20 text-emerald-300 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border border-emerald-500/30">
+                              Verified
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-300 truncate mt-0.5">{user.email}</p>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="py-1">
+                    {/* Navigation Options */}
+                    <div className="p-2 space-y-1 text-xs font-bold text-gray-700">
                       <Link
                         href="/account"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-orange-50 hover:text-[#FF6B00] transition-all group"
                       >
-                        <User className="w-4 h-4" /> My Account
+                        <div className="w-7 h-7 rounded-lg bg-orange-100/70 text-[#FF6B00] flex items-center justify-center shrink-0">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <span className="group-hover:translate-x-0.5 transition-transform">My Account</span>
                       </Link>
+
                       <Link
                         href="/account/orders"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-all group"
                       >
-                        <Package className="w-4 h-4" /> My Orders
+                        <div className="w-7 h-7 rounded-lg bg-amber-100/70 text-amber-600 flex items-center justify-center shrink-0">
+                          <Package className="w-4 h-4" />
+                        </div>
+                        <span className="group-hover:translate-x-0.5 transition-transform">My Orders</span>
                       </Link>
+
                       <Link
                         href="/account/wishlist"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-pink-50 hover:text-pink-600 transition-all group"
                       >
-                        <Heart className="w-4 h-4" /> Wishlist
+                        <div className="w-7 h-7 rounded-lg bg-pink-100/70 text-pink-600 flex items-center justify-center shrink-0">
+                          <Heart className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 flex items-center justify-between">
+                          <span className="group-hover:translate-x-0.5 transition-transform">Wishlist</span>
+                          {wishlistCount > 0 && (
+                            <span className="bg-pink-100 text-pink-600 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-pink-200">
+                              {wishlistCount}
+                            </span>
+                          )}
+                        </div>
                       </Link>
+
                       <Link
                         href="/account/addresses"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-all group"
                       >
-                        <MapPin className="w-4 h-4" /> Saved Addresses
+                        <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-600 flex items-center justify-center shrink-0">
+                          <MapPin className="w-4 h-4" />
+                        </div>
+                        <span className="group-hover:translate-x-0.5 transition-transform">Saved Addresses</span>
                       </Link>
+
                       <Link
                         href="/account/settings"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-purple-50 hover:text-purple-600 transition-all group"
                       >
-                        <Settings className="w-4 h-4" /> Settings
+                        <div className="w-7 h-7 rounded-lg bg-purple-100/70 text-purple-600 flex items-center justify-center shrink-0">
+                          <Settings className="w-4 h-4" />
+                        </div>
+                        <span className="group-hover:translate-x-0.5 transition-transform">Settings</span>
                       </Link>
+
                       <Link
                         href="/account/security"
                         onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50 hover:text-[#FF6B00] transition-colors"
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-all group"
                       >
-                        <Shield className="w-4 h-4" /> Security
+                        <div className="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-600 flex items-center justify-center shrink-0">
+                          <Shield className="w-4 h-4" />
+                        </div>
+                        <span className="group-hover:translate-x-0.5 transition-transform">Security</span>
+                      </Link>
+
+                      {/* Admin Control Panel Option */}
+                      {(profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com') && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-red-950 via-slate-900 to-black text-white hover:opacity-95 transition-all shadow-md border border-red-500/40"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-6 h-6 rounded-md bg-red-600 text-white flex items-center justify-center font-extrabold text-[10px]">
+                              🛡️
+                            </div>
+                            <span className="font-extrabold text-red-200">Admin Control</span>
+                          </div>
+                          <span className="text-[9px] font-black bg-red-600 px-2 py-0.5 rounded-full text-white shadow-xs">
+                            Main Admin
+                          </span>
+                        </Link>
+                      )}
+
+                      {/* Seller Center Option */}
+                      <Link
+                        href="/merchant"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gradient-to-r from-slate-900 via-gray-900 to-black text-white hover:opacity-95 transition-all shadow-xs border border-white/10"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-6 h-6 rounded-md bg-[#FF6B00] text-white flex items-center justify-center font-extrabold text-[10px]">
+                            ⚡
+                          </div>
+                          <span>Sell on eYuvaShop</span>
+                        </div>
+                        <span className="text-[9px] font-black bg-[#FF6B00] px-2 py-0.5 rounded-full text-white">
+                          Seller
+                        </span>
                       </Link>
                     </div>
 
-                    <div className="border-t border-gray-100 pt-1">
+                    {/* Sign Out Button */}
+                    <div className="p-2 border-t border-gray-100 bg-gray-50/50">
                       <button
-                        onClick={() => { setUserMenuOpen(false); setShowSignOutModal(true); }}
-                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          setShowSignOutModal(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 p-2.5 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-extrabold text-xs transition-all active:scale-95"
                       >
-                        <LogOut className="w-4 h-4" /> Sign Out
+                        <LogOut className="w-4 h-4" /> Sign Out from Account
                       </button>
                     </div>
                   </div>
@@ -354,18 +454,19 @@ export function Header() {
               <div className="absolute -left-8 -bottom-8 w-28 h-28 bg-amber-500/20 rounded-full blur-2xl pointer-events-none" />
 
               <div className="relative z-10 flex items-center gap-3.5">
-                <div className="relative w-12 h-12 rounded-xl overflow-hidden border-2 border-[#FF6B00] shadow-md bg-[#FF6B00] flex items-center justify-center font-black text-base text-white flex-shrink-0">
-                  {userAvatar ? (
+                <div className="relative w-12 h-12 rounded-xl overflow-hidden border-2 border-[#FF6B00] shadow-md bg-gray-100 flex items-center justify-center font-black text-base text-white flex-shrink-0">
+                  {userAvatar && !avatarError ? (
                     <img
                       src={formatImageUrl(userAvatar)}
                       alt={userDisplayName}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
+                      onError={() => setAvatarError(true)}
                     />
-                  ) : null}
-                  <span className="uppercase">{userInitials}</span>
+                  ) : (
+                    <div className="w-full h-full bg-[#FF6B00] text-white flex items-center justify-center font-black text-base">
+                      {userInitials}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -483,6 +584,31 @@ export function Header() {
                 Seller Center
               </span>
             </Link>
+
+            {/* Admin Control Panel Banner (Only for Admins) */}
+            {mounted && user && (profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com') && (
+              <>
+                <div className="border-t border-dashed border-gray-200 my-2" />
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-red-950 via-red-900 to-black text-white shadow-lg border-2 border-red-500 shadow-red-500/20 hover:opacity-95 transition-all active:scale-95"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-red-600 text-white flex items-center justify-center shrink-0 font-black text-xs shadow-xs">
+                      🛡️
+                    </div>
+                    <div>
+                      <p className="text-xs font-extrabold text-red-200">Admin Control Panel</p>
+                      <p className="text-[10px] text-red-300/80">Platform Governance Hub</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black bg-red-600 px-2.5 py-1 rounded-full text-white shadow-xs border border-red-400">
+                    Main Admin
+                  </span>
+                </Link>
+              </>
+            )}
 
             {/* Sign Out Button (Full 4-Side Red Border) */}
             {mounted && user && (

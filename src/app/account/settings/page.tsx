@@ -20,6 +20,7 @@ import {
   X,
   Mail,
   Globe,
+  Upload,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
@@ -152,7 +153,7 @@ function Field({
   children,
 }: {
   label: string;
-  icon: React.ElementType;
+  icon?: React.ElementType;
   children: React.ReactNode;
 }) {
   return (
@@ -161,7 +162,9 @@ function Field({
         {label}
       </label>
       <div className="relative">
-        <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        {Icon && (
+          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
+        )}
         {children}
       </div>
     </div>
@@ -216,17 +219,28 @@ export default function AccountSettingsPage() {
   });
   const [profileLoading, setProfileLoading] = useState(false);
   const [avatarPreviewError, setAvatarPreviewError] = useState(false);
+  const isFormInitialized = useRef(false);
 
   useEffect(() => {
-    if (profile || user) {
+    if ((profile || user) && !isFormInitialized.current) {
       setProfileForm({
         full_name: profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '',
         phone: (profile as any)?.phone || user?.phone || user?.user_metadata?.phone || '',
         avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url || '',
       });
       setAvatarPreviewError(false);
+      isFormInitialized.current = true;
     }
   }, [profile, user]);
+
+  const initialName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+  const initialPhone = (profile as any)?.phone || user?.phone || user?.user_metadata?.phone || '';
+  const initialAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || '';
+
+  const isProfileChanged =
+    profileForm.full_name.trim() !== initialName.trim() ||
+    profileForm.phone.trim() !== initialPhone.trim() ||
+    profileForm.avatar_url.trim() !== initialAvatar.trim();
 
 function formatImageUrl(url: string | null | undefined): string {
   if (!url) return '';
@@ -241,6 +255,61 @@ function formatImageUrl(url: string | null | undefined): string {
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('error', 'Image file size must be smaller than 2MB.');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      // 1. Attempt upload to Supabase Storage 'avatars' bucket
+      const fileExt = file.name.split('.').pop() || 'png';
+      const filePath = `${user.id}/avatar_${Date.now()}.${fileExt}`;
+
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (!uploadErr && uploadData) {
+        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+        const finalUrl = publicUrlData.publicUrl;
+        setAvatarPreviewError(false);
+        setProfileForm((f) => ({ ...f, avatar_url: finalUrl }));
+        showToast('success', 'Photo uploaded to Supabase Storage! Click "Save Changes" to finalize.');
+      } else {
+        // Fallback to Data URL if storage bucket RLS is not configured yet
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          if (dataUrl) {
+            setAvatarPreviewError(false);
+            setProfileForm((f) => ({ ...f, avatar_url: dataUrl }));
+            showToast('success', 'Photo selected! Click "Save Changes" to finalize.');
+          }
+          setUploadingImage(false);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    } catch {
+      showToast('error', 'Failed to process image file.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setAvatarPreviewError(false);
+    setProfileForm((f) => ({ ...f, avatar_url: '' }));
+    showToast('success', 'Photo removed! Click "Save Changes" to save.');
+  };
 
   const saveProfile = async () => {
     if (!user) return;
@@ -248,6 +317,17 @@ function formatImageUrl(url: string | null | undefined): string {
     const cleanName = profileForm.full_name.trim();
     if (!cleanName) {
       showToast('error', 'Full Name cannot be empty.');
+      return;
+    }
+
+    if (cleanName.length > 32) {
+      showToast('error', 'Full Name cannot exceed 32 characters.');
+      return;
+    }
+
+    const cleanPhone = profileForm.phone.trim();
+    if (cleanPhone && cleanPhone.length !== 10) {
+      showToast('error', 'Phone number must be exactly 10 digits.');
       return;
     }
 
@@ -298,6 +378,9 @@ function formatImageUrl(url: string | null | undefined): string {
       });
 
       await refreshProfile();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('profileUpdated'));
+      }
       showToast('success', 'Profile updated successfully!');
     } catch (err: any) {
       showToast('error', err?.message ?? 'Failed to update profile.');
@@ -512,7 +595,7 @@ function formatImageUrl(url: string | null | undefined): string {
           <div className="space-y-5">
             {/* Avatar preview */}
             <div className="flex items-center gap-4">
-              <div className="w-20 h-20 rounded-2xl bg-[#FF6B00] flex items-center justify-center text-white font-black text-2xl flex-shrink-0 overflow-hidden shadow-md relative">
+              <div className="w-20 h-20 rounded-2xl border-2 border-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-md relative bg-gray-100">
                 {avatarUrl && !avatarPreviewError ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
                   <img
@@ -522,7 +605,9 @@ function formatImageUrl(url: string | null | undefined): string {
                     onError={() => setAvatarPreviewError(true)}
                   />
                 ) : (
-                  initials
+                  <div className="w-full h-full bg-[#FF6B00] text-white flex items-center justify-center font-black text-2xl">
+                    {initials}
+                  </div>
                 )}
               </div>
               <div>
@@ -570,7 +655,7 @@ function formatImageUrl(url: string | null | undefined): string {
                     }}
                     placeholder="Enter your full name"
                     className={inputCls}
-                    maxLength={34}
+                    maxLength={32}
                   />
                 </Field>
 
@@ -595,35 +680,55 @@ function formatImageUrl(url: string | null | undefined): string {
                   />
                 </Field>
 
-                {/* Avatar URL */}
-                <Field label="Profile Picture URL" icon={ImageIcon}>
+                {/* Profile Picture Option */}
+                <Field label="Profile Picture">
+                  {/* Hidden File Input */}
                   <input
-                    ref={avatarInputRef}
-                    type="url"
-                    value={profileForm.avatar_url}
-                    onChange={(e) => {
-                      setAvatarPreviewError(false);
-                      setProfileForm((f) => ({ ...f, avatar_url: e.target.value }));
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        saveProfile();
-                      }
-                    }}
-                    placeholder="https://example.com/photo.jpg"
-                    className={inputCls}
+                    type="file"
+                    ref={fileInputRef}
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
                   />
-                  <p className="mt-1 text-[11px] text-gray-400">
-                    Paste a public image URL (e.g. Unsplash, Imgur). Changes reflect above.
-                  </p>
+
+                  {/* Device File Upload & Control Buttons */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingImage}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#FF6B00] to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm transition-all active:scale-95 shadow-md shadow-orange-500/20"
+                    >
+                      {uploadingImage ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                          Uploading to Storage...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Choose Photo from Mobile / PC
+                        </>
+                      )}
+                    </button>
+
+                    {profileForm.avatar_url && (
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="px-4 py-3 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-extrabold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" /> Remove Photo
+                      </button>
+                    )}
+                  </div>
                 </Field>
 
                 <div className="pt-2">
                   <button
                     onClick={saveProfile}
-                    disabled={profileLoading}
-                    className="flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors disabled:opacity-60 shadow-sm"
+                    disabled={profileLoading || !isProfileChanged}
+                    className="flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-sm active:scale-95"
                   >
                     {profileLoading ? (
                       <Loader2 className="w-4 h-4 animate-spin" />

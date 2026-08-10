@@ -177,11 +177,20 @@ export function useAuth(): UseAuthReturn {
       }
     );
 
+    const handleProfileUpdated = () => {
+      if (mounted) {
+        refreshProfile();
+      }
+    };
+
+    window.addEventListener('profileUpdated', handleProfileUpdated);
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      window.removeEventListener('profileUpdated', handleProfileUpdated);
     };
-  }, [supabase, fetchProfile]);
+  }, [supabase, fetchProfile, refreshProfile]);
 
   return { ...state, signOut, refreshProfile };
 }

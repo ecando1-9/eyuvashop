@@ -174,7 +174,7 @@ export default function HomePage() {
               description="Approved merchant storefronts will be highlighted here once verified by platform admins."
               icon="store"
               actionLabel="Register New Merchant Store"
-              actionHref="/login"
+              actionHref="/login?redirect=/merchant&tab=merchant&mode=register"
             />
           )}
         </section>
