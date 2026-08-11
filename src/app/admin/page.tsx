@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { 
   ShieldAlert, Users, Store, Package, Grid, DollarSign, CheckCircle2, 
   XCircle, Search, RefreshCw, Filter, AlertTriangle, ShieldCheck, 
-  TrendingUp, Clock, LogOut, Menu, X, ArrowUpRight, Check, Eye
+  TrendingUp, Clock, LogOut, Menu, X, ArrowUpRight, Check, Eye, FileText, ClipboardList
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -33,6 +33,16 @@ export default function AdminDashboard() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [productsList, setProductsList] = useState<any[]>([]);
   const [ordersList, setOrdersList] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  
+  const [stats, setStats] = useState<any>({
+    total_gmv: 0,
+    pending_merchants: 0,
+    pending_products: 0,
+    active_stores: 0,
+    total_users: 0,
+    total_orders: 0
+  });
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +56,12 @@ export default function AdminDashboard() {
   const loadAdminData = useCallback(async () => {
     setLoading(true);
     try {
+      // 0. Fetch Dashboard Stats from RPC
+      const { data: statsData } = await supabase.rpc('get_admin_dashboard_stats');
+      if (statsData) {
+        setStats(statsData);
+      }
+
       // 1. Fetch Merchants
       const { data: merchantData } = await supabase
         .from('merchant_profiles')
@@ -61,7 +77,7 @@ export default function AdminDashboard() {
       // 3. Fetch Products
       const { data: productData } = await supabase
         .from('products')
-        .select('id, title, price, is_active, created_at, store:stores(name)')
+        .select('id, title, price, status, approval_status, created_at, store:stores(name)')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -71,11 +87,19 @@ export default function AdminDashboard() {
         .select('id, total_amount, status, created_at, user:users(full_name, email)')
         .order('created_at', { ascending: false })
         .limit(50);
+        
+      // 5. Fetch Audit Logs
+      const { data: auditData } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
 
       if (merchantData) setMerchants(merchantData);
       if (userData) setUsersList(userData);
       if (productData) setProductsList(productData);
       if (orderData) setOrdersList(orderData);
+      if (auditData) setAuditLogs(auditData);
     } catch {
       showToastMsg('error', 'Failed to load admin telemetry data.');
     } finally {
@@ -90,10 +114,12 @@ export default function AdminDashboard() {
   // Actions
   const handleApproveMerchant = async (merchantId: string) => {
     try {
-      const { error } = await supabase
-        .from('merchant_profiles')
-        .update({ verification_status: 'approved', updated_at: new Date().toISOString() })
-        .eq('id', merchantId);
+      const { error } = await supabase.rpc('admin_update_merchant_status', {
+        p_admin_id: user?.id,
+        p_merchant_id: merchantId,
+        p_status: 'approved',
+        p_rejection_reason: null
+      });
 
       if (error) throw error;
 
@@ -106,10 +132,12 @@ export default function AdminDashboard() {
 
   const handleRejectMerchant = async (merchantId: string) => {
     try {
-      const { error } = await supabase
-        .from('merchant_profiles')
-        .update({ verification_status: 'rejected', updated_at: new Date().toISOString() })
-        .eq('id', merchantId);
+      const { error } = await supabase.rpc('admin_update_merchant_status', {
+        p_admin_id: user?.id,
+        p_merchant_id: merchantId,
+        p_status: 'rejected',
+        p_rejection_reason: 'Admin rejected'
+      });
 
       if (error) throw error;
 
@@ -136,11 +164,22 @@ export default function AdminDashboard() {
       showToastMsg('error', err?.message || 'Failed to update user role.');
     }
   };
-
-  // Metrics Calculations
-  const pendingCount = merchants.filter(m => (m.verification_status || 'pending') === 'pending').length;
-  const approvedCount = merchants.filter(m => m.verification_status === 'approved').length;
-  const totalGmv = ordersList.reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+  
+  const handleApproveProduct = async (productId: string) => {
+    try {
+      const { error } = await supabase.rpc('admin_update_product_status', {
+        p_admin_id: user?.id,
+        p_product_id: productId,
+        p_approval_status: 'approved',
+        p_rejection_reason: null
+      });
+      if (error) throw error;
+      showToastMsg('success', 'Product approved successfully!');
+      loadAdminData();
+    } catch (err: any) {
+      showToastMsg('error', err?.message || 'Failed to approve product.');
+    }
+  };
 
   const filteredMerchants = merchants.filter(m => {
     const matchesFilter = merchantFilter === 'all' || (m.verification_status || 'pending') === merchantFilter;
@@ -157,11 +196,14 @@ export default function AdminDashboard() {
   });
 
   const navItems = [
-    { id: 'overview', label: 'System Overview', icon: ShieldAlert },
-    { id: 'merchants', label: 'Merchant Approvals', icon: Store, badge: pendingCount > 0 ? `${pendingCount} Pending` : undefined },
-    { id: 'products', label: 'Product Catalog', icon: Package },
-    { id: 'users', label: 'User Governance', icon: Users },
-    { id: 'revenue', label: 'Platform Revenue', icon: DollarSign },
+    { id: 'overview', label: 'System Overview', icon: ShieldAlert, href: '/admin' },
+    { id: 'merchants', label: 'Merchants', icon: Store, badge: stats.pending_merchants > 0 ? `${stats.pending_merchants} Pending` : undefined, href: '/admin/merchants' },
+    { id: 'products', label: 'Products', icon: Package, badge: stats.pending_products > 0 ? `${stats.pending_products} Pending` : undefined, href: '/admin/products' },
+    { id: 'orders', label: 'Orders', icon: ClipboardList, href: '/admin/orders' },
+    { id: 'categories', label: 'Categories', icon: Grid, href: '/admin/categories' },
+    { id: 'users', label: 'Users', icon: Users, href: '/admin/users' },
+    { id: 'audit-log', label: 'Audit Log', icon: FileText, href: '/admin/audit-log' },
+    { id: 'revenue', label: 'Platform Revenue', icon: DollarSign, href: '/admin/revenue' },
   ];
 
   return (
@@ -193,9 +235,16 @@ export default function AdminDashboard() {
               const Icon = item.icon;
               const active = activeTab === item.id;
               return (
-                <button
+                <Link
                   key={item.id}
-                  onClick={() => setActiveTab(item.id as TabType)}
+                  href={item.href}
+                  onClick={(e) => {
+                    // Keep the single page app behavior if they just click the tab
+                    if (['overview', 'merchants', 'products', 'users', 'revenue'].includes(item.id)) {
+                      e.preventDefault();
+                      setActiveTab(item.id as TabType);
+                    }
+                  }}
                   className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all ${
                     active 
                       ? 'bg-gradient-to-r from-red-950 via-red-900 to-black text-white border border-red-500/40 shadow-lg shadow-red-950/50' 
@@ -211,7 +260,7 @@ export default function AdminDashboard() {
                       {item.badge}
                     </span>
                   )}
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -266,7 +315,7 @@ export default function AdminDashboard() {
                     <span className="text-xs font-medium">Total Platform GMV</span>
                     <DollarSign className="w-4 h-4 text-emerald-400" />
                   </div>
-                  <h3 className="text-2xl font-black text-white">{formatCurrency(totalGmv)}</h3>
+                  <h3 className="text-2xl font-black text-white">{formatCurrency(stats.total_gmv || 0)}</h3>
                   <p className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
                     <TrendingUp className="w-3 h-3" /> Live Transaction Volume
                   </p>
@@ -277,7 +326,7 @@ export default function AdminDashboard() {
                     <span className="text-xs font-medium">Pending Merchant Approvals</span>
                     <Clock className="w-4 h-4 text-amber-400" />
                   </div>
-                  <h3 className="text-2xl font-black text-amber-400">{pendingCount}</h3>
+                  <h3 className="text-2xl font-black text-amber-400">{stats.pending_merchants || 0}</h3>
                   <p className="text-[11px] text-gray-400 mt-1">Requires Admin Action</p>
                 </div>
 
@@ -286,7 +335,7 @@ export default function AdminDashboard() {
                     <span className="text-xs font-medium">Active Seller Stores</span>
                     <Store className="w-4 h-4 text-[#FF6B00]" />
                   </div>
-                  <h3 className="text-2xl font-black text-[#FF6B00]">{approvedCount}</h3>
+                  <h3 className="text-2xl font-black text-[#FF6B00]">{stats.active_stores || 0}</h3>
                   <p className="text-[11px] text-gray-400 mt-1">Verified Storefronts</p>
                 </div>
 
@@ -295,56 +344,92 @@ export default function AdminDashboard() {
                     <span className="text-xs font-medium">Total Registered Users</span>
                     <Users className="w-4 h-4 text-blue-400" />
                   </div>
-                  <h3 className="text-2xl font-black text-white">{usersList.length}</h3>
+                  <h3 className="text-2xl font-black text-white">{stats.total_users || 0}</h3>
                   <p className="text-[11px] text-gray-400 mt-1">Accounts on Platform</p>
                 </div>
               </div>
 
-              {/* Quick Actions Panel */}
-              <div className="bg-gradient-to-r from-red-950/40 via-gray-900 to-black p-6 rounded-3xl border border-red-500/20 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-extrabold text-white">Merchant Application Requests</h3>
-                    <p className="text-xs text-gray-400">Review pending seller onboardings</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Quick Actions Panel */}
+                <div className="bg-gradient-to-r from-red-950/40 via-gray-900 to-black p-6 rounded-3xl border border-red-500/20 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-extrabold text-white">Merchant Application Requests</h3>
+                      <p className="text-xs text-gray-400">Review pending seller onboardings</p>
+                    </div>
+                    <button 
+                      onClick={() => setActiveTab('merchants')}
+                      className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1"
+                    >
+                      View All ({stats.pending_merchants}) <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => setActiveTab('merchants')}
-                    className="text-xs font-bold text-red-400 hover:text-red-300 flex items-center gap-1"
-                  >
-                    View All ({merchants.length}) <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
 
-                {pendingCount > 0 ? (
-                  <div className="divide-y divide-gray-800">
-                    {merchants.filter(m => (m.verification_status || 'pending') === 'pending').slice(0, 5).map((m) => (
-                      <div key={m.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <p className="font-extrabold text-sm text-white">{m.business_name || 'Unnamed Store'}</p>
-                          <p className="text-xs text-gray-400">{m.email} • Requested {new Date(m.created_at || Date.now()).toLocaleDateString()}</p>
+                  {stats.pending_merchants > 0 ? (
+                    <div className="divide-y divide-gray-800">
+                      {merchants.filter(m => (m.verification_status || 'pending') === 'pending').slice(0, 5).map((m) => (
+                        <div key={m.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <p className="font-extrabold text-sm text-white">{m.business_name || 'Unnamed Store'}</p>
+                            <p className="text-xs text-gray-400">{m.email} • Requested {new Date(m.created_at || Date.now()).toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleApproveMerchant(m.id)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 transition-all"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Approve Store
+                            </button>
+                            <button
+                              onClick={() => handleRejectMerchant(m.id)}
+                              className="px-3 py-1.5 rounded-xl bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 font-extrabold text-xs flex items-center gap-1 transition-all"
+                            >
+                              <X className="w-3.5 h-3.5" /> Reject
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleApproveMerchant(m.id)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center gap-1 transition-all"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Approve Store
-                          </button>
-                          <button
-                            onClick={() => handleRejectMerchant(m.id)}
-                            className="px-3 py-1.5 rounded-xl bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 font-extrabold text-xs flex items-center gap-1 transition-all"
-                          >
-                            <X className="w-3.5 h-3.5" /> Reject
-                          </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs text-gray-400 bg-black/40 rounded-2xl border border-gray-800">
+                      ✨ No pending merchant verification requests at this time.
+                    </div>
+                  )}
+                </div>
+                
+                {/* Audit Logs */}
+                <div className="bg-gradient-to-r from-gray-900 to-black p-6 rounded-3xl border border-gray-800 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-extrabold text-white">Recent System Activity</h3>
+                      <p className="text-xs text-gray-400">Audit logs tracking important events</p>
+                    </div>
+                    <Link href="/admin/audit-log" className="text-xs font-bold text-gray-400 hover:text-white flex items-center gap-1">
+                      Full Log <ArrowUpRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                  
+                  {auditLogs.length > 0 ? (
+                    <div className="space-y-3">
+                      {auditLogs.map((log) => (
+                        <div key={log.id} className="p-3 bg-gray-900/50 rounded-xl border border-gray-800/50 flex flex-col gap-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-white capitalize">{log.action.replace(/_/g, ' ')}</span>
+                            <span className="text-[10px] text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
+                          </div>
+                          <p className="text-[11px] text-gray-400 break-words">
+                            {log.entity_type} • ID: {log.entity_id?.substring(0, 8)}...
+                            {log.metadata && ` • ${JSON.stringify(log.metadata).substring(0, 50)}...`}
+                          </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-6 text-center text-xs text-gray-400 bg-black/40 rounded-2xl border border-gray-800">
-                    ✨ No pending merchant verification requests at this time.
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-xs text-gray-400 bg-black/40 rounded-2xl border border-gray-800">
+                      No recent activity logged.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -457,9 +542,14 @@ export default function AdminDashboard() {
                           <p className="font-extrabold text-sm text-white">{p.title}</p>
                           <p className="text-gray-400">{formatCurrency(p.price)} • Store: {p.store?.name || 'Platform Seller'}</p>
                         </div>
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-extrabold">
-                          Active Listing
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${p.approval_status === 'approved' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-amber-950 text-amber-400 border border-amber-800'}`}>
+                            {p.approval_status || 'pending'}
+                          </span>
+                          {p.approval_status !== 'approved' && (
+                            <button onClick={() => handleApproveProduct(p.id)} className="text-emerald-400 hover:text-emerald-300 font-bold">Approve</button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -467,7 +557,7 @@ export default function AdminDashboard() {
                   <EmptyState
                     title="No Products Registered Yet"
                     description="Products added by approved sellers will appear here for platform moderation."
-                    icon="product"
+                    icon="inbox"
                   />
                 )}
               </div>
@@ -536,7 +626,7 @@ export default function AdminDashboard() {
             <div className="space-y-5">
               <div>
                 <h2 className="text-lg font-black text-white">Platform Revenue & Order History</h2>
-                <p className="text-xs text-gray-400">Total processed GMV: {formatCurrency(totalGmv)}</p>
+                <p className="text-xs text-gray-400">Total processed GMV: {formatCurrency(stats.total_gmv || 0)}</p>
               </div>
 
               <div className="bg-black rounded-2xl border border-gray-900 overflow-hidden">
@@ -600,10 +690,14 @@ export default function AdminDashboard() {
                   const Icon = item.icon;
                   const active = activeTab === item.id;
                   return (
-                    <button
+                    <Link
                       key={item.id}
-                      onClick={() => {
-                        setActiveTab(item.id as TabType);
+                      href={item.href}
+                      onClick={(e) => {
+                        if (['overview', 'merchants', 'products', 'users', 'revenue'].includes(item.id)) {
+                          e.preventDefault();
+                          setActiveTab(item.id as TabType);
+                        }
                         setMobileMenuOpen(false);
                       }}
                       className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all ${
@@ -621,7 +715,7 @@ export default function AdminDashboard() {
                           {item.badge}
                         </span>
                       )}
-                    </button>
+                    </Link>
                   );
                 })}
               </nav>

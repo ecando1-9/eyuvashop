@@ -29,8 +29,8 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
     <div className="relative w-full rounded-3xl overflow-hidden bg-gray-900 text-white min-h-[360px] md:min-h-[440px] flex items-center shadow-xl">
       {/* Background Image */}
       <Image
-        src={currentBanner.image_url}
-        alt={currentBanner.title}
+        src={currentBanner.image_url ?? ''}
+        alt={currentBanner.title ?? 'Banner'}
         fill
         priority
         className="object-cover opacity-40 transition-all duration-700 scale-105"

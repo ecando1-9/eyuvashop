@@ -1,195 +1,240 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 import { Header } from '@/components/common/Header';
 import { Footer } from '@/components/common/Footer';
 import { BottomNav } from '@/components/common/BottomNav';
 import { HeroCarousel } from '@/components/customer/HeroCarousel';
 import { ProductCard } from '@/components/customer/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { MOCK_BANNERS, MOCK_CATEGORIES, MOCK_PRODUCTS, MOCK_STORES } from '@/lib/constants/mockData';
-import { Product } from '@/types/database';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Star, ArrowRight, Sparkles, TrendingUp, Award, X } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { Product, Banner, Category, Store } from '@/types/database';
+import { ChevronRight, Store as StoreIcon, TrendingUp, Sparkles, Star } from 'lucide-react';
+
+interface HomePageData {
+  banners: Banner[];
+  categories: Category[];
+  products: any[];
+  stores: Store[];
+}
 
 export default function HomePage() {
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [data, setData] = useState<HomePageData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const { data: rpcData, error } = await supabase.rpc('get_homepage_data');
+        if (error) {
+          console.error('Error fetching homepage data:', error);
+        } else if (rpcData) {
+          setData(rpcData as any);
+        }
+      } catch (err) {
+        console.error('Exception fetching homepage data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [supabase]);
+
+  // Transform products from RPC to match ProductCard expected structure
+  const transformProduct = (rawProduct: any): Product => {
+    return {
+      id: rawProduct.id,
+      title: rawProduct.title,
+      slug: rawProduct.slug,
+      price: rawProduct.price,
+      compare_at_price: rawProduct.compare_at_price,
+      rating: rawProduct.rating || 0,
+      review_count: rawProduct.review_count || 0,
+      status: rawProduct.status,
+      approval_status: rawProduct.approval_status,
+      is_featured: rawProduct.is_featured,
+      is_trending: rawProduct.is_trending,
+      is_best_seller: rawProduct.is_best_seller,
+      is_new_arrival: rawProduct.is_new_arrival,
+      created_at: rawProduct.created_at,
+      store_id: rawProduct.store_id,
+      category_id: rawProduct.category_id,
+      brand: rawProduct.brand,
+      description: rawProduct.description,
+      sku: rawProduct.sku,
+      stock_quantity: rawProduct.stock_quantity || 0,
+      low_stock_threshold: rawProduct.low_stock_threshold || 5,
+      rejection_reason: null,
+      submitted_at: null,
+      updated_at: rawProduct.updated_at,
+      deleted_at: null,
+      images: rawProduct.primary_image ? [{ id: '1', product_id: rawProduct.id, url: rawProduct.primary_image, is_primary: true, alt_text: rawProduct.title, display_order: 1, created_at: '' }] : [],
+      store: {
+        name: rawProduct.store_name,
+        slug: rawProduct.store_slug
+      }
+    };
+  };
+
+  const banners = data?.banners || [];
+  const categories = data?.categories || [];
+  const products = (data?.products || []).map(transformProduct);
+  const stores = data?.stores || [];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
       <Header />
-
-      <main className="flex-1 w-full px-4 sm:px-8 lg:px-12 py-6 space-y-12">
-        {/* Hero Carousel */}
-        {MOCK_BANNERS.length > 0 ? (
-          <HeroCarousel banners={MOCK_BANNERS} />
-        ) : (
-          <div className="relative w-full rounded-3xl overflow-hidden bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 text-white min-h-[280px] md:min-h-[340px] flex items-center justify-center p-8 shadow-xl text-center border border-gray-800">
-            <div className="max-w-xl space-y-3">
-              <span className="bg-[#FF6B00] text-white text-[11px] font-black uppercase px-3 py-1 rounded-full tracking-wider shadow">
-                eYuvashop Marketplace
-              </span>
-              <h1 className="text-2xl md:text-4xl font-black tracking-tight">
-                Welcome to eYuvashop Platform
-              </h1>
-              <p className="text-gray-400 text-xs md:text-sm leading-relaxed">
-                Connect your Supabase database or register as a merchant to publish live banners, products, and categories.
-              </p>
-              <div className="pt-2 flex items-center justify-center gap-3">
-                <Link
-                  href="/merchant"
-                  className="inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all shadow-md"
-                >
-                  Become a Seller
-                </Link>
-                <Link
-                  href="/login"
-                  className="inline-flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white font-bold text-xs px-5 py-2.5 rounded-full transition-all border border-gray-700"
-                >
-                  Customer Login
-                </Link>
+      
+      <main className="w-full mx-auto pb-12">
+        {isLoading ? (
+          <div className="w-full space-y-8 animate-pulse">
+            <div className="w-full h-[200px] md:h-[400px] bg-gray-200"></div>
+            
+            <div className="max-w-7xl mx-auto px-4 w-full">
+              <div className="h-8 bg-gray-200 w-48 mb-6 rounded"></div>
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                {[1,2,3,4,5,6,7,8].map(i => (
+                  <div key={i} className="flex flex-col items-center gap-2">
+                    <div className="w-16 h-16 rounded-full bg-gray-200"></div>
+                    <div className="h-4 bg-gray-200 w-16 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="max-w-7xl mx-auto px-4 w-full">
+              <div className="flex justify-between items-center mb-6">
+                <div className="h-8 bg-gray-200 w-48 rounded"></div>
+                <div className="h-6 bg-gray-200 w-24 rounded"></div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+                ))}
               </div>
             </div>
           </div>
-        )}
-
-        {/* Shop by Categories */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Shop by Category</h2>
-              <p className="text-xs text-gray-500">Explore curated collections across top departments</p>
-            </div>
-            {MOCK_CATEGORIES.length > 0 && (
-              <Link href="/categories" className="text-xs font-bold text-[#FF6B00] hover:underline flex items-center gap-1">
-                View All <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            )}
-          </div>
-
-          {MOCK_CATEGORIES.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-              {MOCK_CATEGORIES.map((cat) => (
-                <Link
-                  key={cat.id}
-                  href={`/category/${cat.slug}`}
-                  className="group bg-white p-4 rounded-2xl border border-gray-100 flex flex-col items-center text-center hover:shadow-lg hover:border-[#FF6B00]/30 transition-all duration-300"
-                >
-                  <div className="relative w-16 h-16 rounded-full overflow-hidden mb-3 bg-gray-100 group-hover:scale-110 transition-transform">
-                    {cat.image_url && <Image src={cat.image_url} alt={cat.name} fill className="object-cover" />}
-                  </div>
-                  <h3 className="font-bold text-xs text-gray-900 group-hover:text-[#FF6B00] transition-colors">{cat.name}</h3>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No Categories Available"
-              description="Categories will appear here once added by merchants or approved by platform admin."
-              icon="sparkles"
-              actionLabel="Add Category in Merchant Hub"
-              actionHref="/merchant"
-            />
-          )}
-        </section>
-
-        {/* Featured Products */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-[#FF6B00]" />
-              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Featured Products</h2>
-            </div>
-          </div>
-
-          {MOCK_PRODUCTS.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {MOCK_PRODUCTS.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onQuickView={(p) => setSelectedProduct(p)}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState
-              title="No Featured Products Available"
-              description="Your product catalog is empty. Merchants can list products directly from the Merchant Portal."
-              icon="product"
-              actionLabel="Create Product in Seller Hub"
-              actionHref="/merchant"
-            />
-          )}
-        </section>
-
-        {/* Featured Stores */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight">Featured Merchant Stores</h2>
-              <p className="text-xs text-gray-500">Buy directly from verified brand flagships</p>
-            </div>
-          </div>
-
-          {MOCK_STORES.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {MOCK_STORES.map((store) => (
-                <div key={store.id} className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <div className="relative h-32 w-full bg-gray-200">
-                    {store.banner_url && <Image src={store.banner_url} alt={store.name} fill className="object-cover" />}
-                  </div>
-                  <div className="p-6 relative pt-0 flex flex-col justify-between">
-                    <div className="flex items-end justify-between -mt-10 mb-4">
-                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-md bg-white">
-                        {store.logo_url && <Image src={store.logo_url} alt={store.name} fill className="object-cover" />}
-                      </div>
-                      <Link
-                        href={`/store/${store.slug}`}
-                        className="bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-[#FF6B00] transition-colors"
-                      >
-                        Visit Store
-                      </Link>
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-lg text-gray-900">{store.name}</h3>
-                      <p className="text-xs text-gray-500 line-clamp-2 mt-1">{store.description}</p>
-                    </div>
-                    <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100 text-xs font-medium text-gray-600">
-                      <div className="flex items-center gap-1 text-amber-500">
-                        <Star className="w-4 h-4 fill-current" /> <span className="font-bold">{store.rating}</span>
-                      </div>
-                      <span>•</span>
-                      <span>{store.followers_count.toLocaleString()} Followers</span>
-                    </div>
+        ) : (
+          <>
+            {/* Hero Section */}
+            <div className="w-full mb-8">
+              {banners.length > 0 ? (
+                <HeroCarousel banners={banners} />
+              ) : (
+                <div className="w-full h-[200px] md:h-[400px] bg-[#0B1E3D] flex items-center justify-center text-white p-4 text-center">
+                  <div>
+                    <h1 className="text-3xl md:text-5xl font-bold mb-4">Welcome to eYuvashop</h1>
+                    <p className="text-lg md:text-xl text-gray-300">Your trusted multi-vendor marketplace</p>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          ) : (
-            <EmptyState
-              title="No Merchant Stores Registered"
-              description="Approved merchant storefronts will be highlighted here once verified by platform admins."
-              icon="store"
-              actionLabel="Register New Merchant Store"
-              actionHref="/login?redirect=/merchant&tab=merchant&mode=register"
-            />
-          )}
-        </section>
 
-        {/* Promotional Banner */}
-        <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#FF6B00] to-orange-600 p-8 md:p-12 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <span className="bg-white/20 text-white text-xs font-black uppercase px-3 py-1 rounded-full">Multi-Vendor Enterprise Engine</span>
-            <h2 className="text-2xl md:text-4xl font-black tracking-tight">Scale Your Online Store with eYuvashop</h2>
-            <p className="text-xs md:text-sm text-orange-100">Directly sync your Supabase PostgreSQL database to manage inventory, sales analytics, and global customer orders.</p>
-          </div>
-          <Link href="/merchant" className="bg-white text-gray-900 font-extrabold text-sm px-6 py-3.5 rounded-full hover:bg-gray-100 transition-all shadow-lg whitespace-nowrap">
-            Open Seller Account
-          </Link>
-        </section>
+            {/* Categories Section */}
+            <section className="max-w-7xl mx-auto px-4 mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">Shop by Category</h2>
+                <Link href="/categories" className="text-sm font-medium text-[#FF6B00] flex items-center hover:underline">
+                  View All <ChevronRight className="w-4 h-4 ml-1" />
+                </Link>
+              </div>
+              
+              {categories.length > 0 ? (
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-4 md:gap-6">
+                  {categories.slice(0, 8).map((category) => (
+                    <Link key={category.id} href={`/categories/${category.slug}`} className="flex flex-col items-center group">
+                      <div className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white border border-gray-100 shadow-sm flex items-center justify-center overflow-hidden mb-2 group-hover:border-[#FF6B00] group-hover:shadow-md transition-all">
+                        {category.image_url ? (
+                          <div className="relative w-full h-full">
+                            <Image src={category.image_url} alt={category.name} fill className="object-cover" sizes="(max-width: 768px) 64px, 80px" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-400">
+                            <Sparkles className="w-5 h-5" />
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-xs md:text-sm font-medium text-gray-700 text-center line-clamp-2 group-hover:text-[#FF6B00] transition-colors">
+                        {category.name}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="sparkles" title="No Categories Available" description="Categories will appear here once added by admin." />
+              )}
+            </section>
+
+            {/* Featured Products */}
+            <section className="max-w-7xl mx-auto px-4 mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-6 h-6 text-[#FF6B00]" />
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">Trending Products</h2>
+                </div>
+              </div>
+              
+              {products.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {products.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="product" title="No Products Yet" description="Merchants can list products from the Seller Hub." actionLabel="Become a Seller" actionHref="/merchant" />
+              )}
+            </section>
+
+            {/* Featured Stores */}
+            <section className="max-w-7xl mx-auto px-4 mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <StoreIcon className="w-6 h-6 text-[#FF6B00]" />
+                  <h2 className="text-xl md:text-2xl font-bold text-gray-900">Featured Stores</h2>
+                </div>
+              </div>
+              
+              {stores.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {stores.map((store) => (
+                    <Link key={store.id} href={`/store/${store.slug}`} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-all group block">
+                      <div className="h-32 bg-gray-100 relative">
+                        {store.banner_url ? (
+                          <Image src={store.banner_url} alt={store.name} fill className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#0B1E3D]/10"></div>
+                        )}
+                        <div className="absolute -bottom-6 left-4 w-12 h-12 rounded-full border-2 border-white bg-white overflow-hidden shadow-sm">
+                          {store.logo_url ? (
+                            <Image src={store.logo_url} alt={store.name} fill className="object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-[#0B1E3D] flex items-center justify-center text-white font-bold text-lg">
+                              {store.name.charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="pt-8 pb-4 px-4">
+                        <h3 className="font-semibold text-gray-900 group-hover:text-[#FF6B00] transition-colors">{store.name}</h3>
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-1">{store.city}{store.state ? `, ${store.state}` : ''}</p>
+                        <div className="flex items-center gap-1 mt-2 text-sm text-gray-600">
+                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-medium">{store.rating ? Number(store.rating).toFixed(1) : 'New'}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState icon="store" title="No Merchant Stores" description="Approved merchant storefronts will appear here." actionLabel="Register as Merchant" actionHref="/merchant" />
+              )}
+            </section>
+          </>
+        )}
       </main>
 
       <Footer />

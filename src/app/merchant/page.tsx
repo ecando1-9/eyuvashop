@@ -3,20 +3,31 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search, Clock, AlertTriangle, ShieldCheck, Lock, Menu, X } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Grid, Layers, Users, Star, TrendingUp, DollarSign, Tag, Store, Settings, LogOut, Bell, Plus, Search, Clock, AlertTriangle, ShieldCheck, Lock, Menu, X, Inbox } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
+import { SignOutModal } from '@/components/common/SignOutModal';
 
 const LOGO_URL = "https://res.cloudinary.com/dw9oeeyt3/image/upload/v1785690896/Thank_you_sticker_design_with_branding_xgab7m.png";
 
-import { SignOutModal } from '@/components/common/SignOutModal';
-
 export default function MerchantDashboard() {
   const { user, profile, signOut } = useAuth();
-  const [orders] = useState<any[]>([]);
-  const [products] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>({
+    today_revenue: 0,
+    pending_orders: 0,
+    monthly_revenue: 0,
+    total_products: 0,
+    published_products: 0,
+    pending_products: 0,
+    rejected_products: 0,
+    low_stock_products: 0,
+    out_of_stock_products: 0
+  });
+  
+  const [merchantProfile, setMerchantProfile] = useState<any>(null);
   const [businessName, setBusinessName] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [showSignOutModal, setShowSignOutModal] = useState(false);
@@ -27,17 +38,39 @@ export default function MerchantDashboard() {
     async function loadMerchantData() {
       if (!user) return;
       try {
-        const { data } = await supabase
+        const { data: mProfile } = await supabase
           .from('merchant_profiles')
-          .select('business_name, verification_status')
+          .select('*')
           .eq('user_id', user.id)
           .single();
-        if (data) {
-          if (data.business_name) setBusinessName(data.business_name);
-          if (data.verification_status) setVerificationStatus(data.verification_status as any);
+          
+        if (mProfile) {
+          setMerchantProfile(mProfile);
+          if (mProfile.business_name) setBusinessName(mProfile.business_name);
+          if (mProfile.verification_status) setVerificationStatus(mProfile.verification_status as any);
+          
+          // Load Stats via RPC
+          const { data: statsData } = await supabase.rpc('get_merchant_dashboard_stats', { p_merchant_id: mProfile.id });
+          if (statsData) {
+            setStats(statsData);
+          }
+          
+          // Load Recent Orders
+          const { data: stores } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).single();
+          if (stores) {
+            const { data: recentOrders } = await supabase.from('order_items')
+              .select('id, quantity, total_price, merchant_status, created_at, product:products(title), order:orders(order_number)')
+              .eq('store_id', stores.id)
+              .order('created_at', { ascending: false })
+              .limit(5);
+              
+            if (recentOrders) {
+              setOrders(recentOrders);
+            }
+          }
         }
-      } catch {
-        // Fallback to defaults
+      } catch (err) {
+        console.error("Error loading merchant data:", err);
       }
     }
     loadMerchantData();
@@ -56,19 +89,24 @@ export default function MerchantDashboard() {
     return url;
   };
 
+  const handleComingSoon = (e: React.MouseEvent) => {
+    e.preventDefault();
+    alert('Coming soon!');
+  };
+
   const sidebarNav = [
-    { label: 'Dashboard', icon: LayoutDashboard, active: true },
-    { label: 'Orders', icon: ShoppingBag, badge: orders.length > 0 ? `${orders.length} New` : undefined },
-    { label: 'Products', icon: Package },
-    { label: 'Categories', icon: Grid },
-    { label: 'Inventory', icon: Layers },
-    { label: 'Customers', icon: Users },
-    { label: 'Reviews', icon: Star },
-    { label: 'Analytics', icon: TrendingUp },
-    { label: 'Revenue', icon: DollarSign },
-    { label: 'Coupons', icon: Tag },
-    { label: 'Store Settings', icon: Store },
-    { label: 'Settings', icon: Settings },
+    { label: 'Dashboard', icon: LayoutDashboard, active: true, href: '/merchant' },
+    { label: 'Orders', icon: ShoppingBag, badge: stats.pending_orders > 0 ? `${stats.pending_orders} New` : undefined, href: '/merchant/orders' },
+    { label: 'Products', icon: Package, href: '/merchant/products' },
+    { label: 'Categories', icon: Grid, href: '/merchant' },
+    { label: 'Inventory', icon: Layers, href: '/merchant/inventory' },
+    { label: 'Customers', icon: Users, href: '/merchant', onClick: handleComingSoon },
+    { label: 'Reviews', icon: Star, href: '/merchant' },
+    { label: 'Analytics', icon: TrendingUp, href: '/merchant', onClick: handleComingSoon },
+    { label: 'Revenue', icon: DollarSign, href: '/merchant', onClick: handleComingSoon },
+    { label: 'Coupons', icon: Tag, href: '/merchant' },
+    { label: 'Store Settings', icon: Store, href: '/merchant/store' },
+    { label: 'Settings', icon: Settings, href: '/merchant' },
   ];
 
   return (
@@ -90,8 +128,10 @@ export default function MerchantDashboard() {
             {sidebarNav.map((item) => {
               const Icon = item.icon;
               return (
-                <button
+                <Link
                   key={item.label}
+                  href={item.href}
+                  onClick={item.onClick}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     item.active
                       ? 'bg-[#FF6B00] text-white shadow-md'
@@ -106,7 +146,7 @@ export default function MerchantDashboard() {
                       {item.badge}
                     </span>
                   )}
-                </button>
+                </Link>
               );
             })}
           </nav>
@@ -228,26 +268,53 @@ export default function MerchantDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
               <p className="text-xs text-gray-500 font-medium">Today's Sales</p>
-              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{formatCurrency(0)}</h3>
-              <p className="text-[11px] text-gray-400 mt-2 font-semibold">No sales recorded today</p>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-xs text-gray-500 font-medium">Today's Orders</p>
-              <h3 className="text-2xl font-black text-[#FF6B00] mt-1">{orders.length}</h3>
-              <p className="text-[11px] text-gray-400 mt-2 font-semibold">0 pending orders</p>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-xs text-gray-500 font-medium">Monthly Revenue</p>
-              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{formatCurrency(0)}</h3>
+              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{formatCurrency(stats.today_revenue || 0)}</h3>
               <p className="text-[11px] text-emerald-600 mt-2 font-semibold">Real-time sync active</p>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-              <p className="text-xs text-gray-500 font-medium">Store Products</p>
-              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{products.length}</h3>
+              <p className="text-xs text-gray-500 font-medium">Pending Orders</p>
+              <h3 className="text-2xl font-black text-[#FF6B00] mt-1">{stats.pending_orders || 0}</h3>
+              <p className="text-[11px] text-gray-400 mt-2 font-semibold">Requires fulfillment</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <p className="text-xs text-gray-500 font-medium">Monthly Revenue</p>
+              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{formatCurrency(stats.monthly_revenue || 0)}</h3>
+              <p className="text-[11px] text-emerald-600 mt-2 font-semibold">Current month</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+              <p className="text-xs text-gray-500 font-medium">Total Products</p>
+              <h3 className="text-2xl font-black text-[#0B1E3D] mt-1">{stats.total_products || 0}</h3>
               <p className="text-[11px] text-gray-400 mt-2 font-semibold">Live in store catalog</p>
+            </div>
+          </div>
+          
+          {/* Secondary Metrics Row - Products Status */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider">Catalog Health</h3>
+            <div className="flex flex-wrap items-center gap-4 text-sm divide-x divide-gray-200">
+              <div className="pr-4">
+                <span className="text-gray-500 mr-2">Published:</span>
+                <span className="font-bold text-emerald-600">{stats.published_products || 0}</span>
+              </div>
+              <div className="px-4">
+                <span className="text-gray-500 mr-2">Pending Admin Approval:</span>
+                <span className="font-bold text-amber-600">{stats.pending_products || 0}</span>
+              </div>
+              <div className="px-4">
+                <span className="text-gray-500 mr-2">Rejected:</span>
+                <span className="font-bold text-red-600">{stats.rejected_products || 0}</span>
+              </div>
+              <div className="px-4">
+                <span className="text-gray-500 mr-2">Low Stock:</span>
+                <span className="font-bold text-orange-500">{stats.low_stock_products || 0}</span>
+              </div>
+              <div className="pl-4">
+                <span className="text-gray-500 mr-2">Out of Stock:</span>
+                <span className="font-bold text-red-600">{stats.out_of_stock_products || 0}</span>
+              </div>
             </div>
           </div>
 
@@ -257,18 +324,25 @@ export default function MerchantDashboard() {
             <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-base text-[#0B1E3D]">Recent Store Orders</h3>
+                <Link href="/merchant/orders" className="text-[#FF6B00] text-xs font-bold hover:underline">View All</Link>
               </div>
 
               {orders.length > 0 ? (
                 <div className="space-y-3">
                   {orders.map((order, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl text-xs">
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-gray-50 rounded-xl text-xs gap-3">
                       <div>
-                        <h4 className="font-bold text-gray-900">Order #{order.id}</h4>
-                        <p className="text-gray-500">Customer: {order.customerName}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-bold text-gray-900">Order #{order.order?.order_number || order.id?.substring(0, 8)}</h4>
+                          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold uppercase">{order.merchant_status}</span>
+                        </div>
+                        <p className="text-gray-500 truncate max-w-[200px] sm:max-w-[300px]">
+                          {order.quantity}x {order.product?.title || 'Unknown Product'}
+                        </p>
                       </div>
-                      <div className="text-right">
-                        <div className="font-black text-gray-900">{formatCurrency(order.amount)}</div>
+                      <div className="text-left sm:text-right">
+                        <div className="font-black text-gray-900 text-sm">{formatCurrency(order.total_price)}</div>
+                        <div className="text-gray-400 text-[10px]">{new Date(order.created_at).toLocaleString()}</div>
                       </div>
                     </div>
                   ))}
@@ -286,9 +360,13 @@ export default function MerchantDashboard() {
             <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 shadow-sm">
               <h3 className="font-extrabold text-base text-[#0B1E3D]">Quick Actions</h3>
               <div className="space-y-2">
-                <button
-                  disabled={verificationStatus !== 'approved'}
-                  className="w-full bg-[#FF6B00] hover:bg-orange-600 text-white text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                <Link
+                  href={verificationStatus === 'approved' ? "/merchant/products/new" : "#"}
+                  className={`w-full text-xs font-bold py-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                    verificationStatus === 'approved' 
+                      ? 'bg-[#FF6B00] hover:bg-orange-600 text-white' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 >
                   {verificationStatus === 'approved' ? (
                     <Plus className="w-4 h-4" />
@@ -296,7 +374,7 @@ export default function MerchantDashboard() {
                     <Lock className="w-4 h-4" />
                   )}
                   {verificationStatus === 'approved' ? 'Add New Product' : 'Add Product (Verification Pending)'}
-                </button>
+                </Link>
                 <button
                   disabled={verificationStatus !== 'approved'}
                   className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -304,13 +382,23 @@ export default function MerchantDashboard() {
                   {verificationStatus !== 'approved' && <Lock className="w-3.5 h-3.5" />}
                   Request New Category
                 </button>
-                <button
-                  disabled={verificationStatus !== 'approved'}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold py-3 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                <Link
+                  href="/merchant/store"
+                  className={`w-full text-xs font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                    verificationStatus === 'approved'
+                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 >
                   {verificationStatus !== 'approved' && <Lock className="w-3.5 h-3.5" />}
                   Update Store Banner
-                </button>
+                </Link>
+                <Link
+                  href="/merchant/orders"
+                  className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  View Recent Orders
+                </Link>
               </div>
             </div>
           </div>
@@ -376,9 +464,13 @@ export default function MerchantDashboard() {
                 {sidebarNav.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <button
+                    <Link
                       key={item.label}
-                      onClick={() => setMobileMenuOpen(false)}
+                      href={item.href}
+                      onClick={(e) => {
+                        setMobileMenuOpen(false);
+                        if (item.onClick) item.onClick(e as any);
+                      }}
                       className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                         item.active
                           ? 'bg-[#FF6B00] text-white shadow-md'
@@ -393,7 +485,7 @@ export default function MerchantDashboard() {
                           {item.badge}
                         </span>
                       )}
-                    </button>
+                    </Link>
                   );
                 })}
               </nav>

@@ -18,7 +18,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
   const { toggleWishlist, isInWishlist } = useWishlistStore();
   const isWishlisted = isInWishlist(product.id);
 
-  const discountPercent = calculateDiscount(product.price, product.compare_at_price);
+  const discountPercent = calculateDiscount(product.price, product.compare_at_price ?? undefined);
   const primaryImage = product.images?.find((img) => img.is_primary)?.url || product.images?.[0]?.url || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500';
 
   return (

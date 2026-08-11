@@ -50,7 +50,7 @@ export function useAuth(): UseAuthReturn {
       const metaAvatar = currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || currentUser?.user_metadata?.avatarUrl || null;
 
       // If user was previously soft-deleted and logs in again, reactivate public.users row
-      if (currentUser && (profileObj?.deleted_at || currentUser?.user_metadata?.is_deleted)) {
+      if (currentUser && ((profileObj as any)?.deleted_at || currentUser?.user_metadata?.is_deleted)) {
         await supabase.from('users').upsert({
           id: userId,
           email: currentUser.email || '',
@@ -70,12 +70,13 @@ export function useAuth(): UseAuthReturn {
             ...profileObj,
             full_name: profileObj.full_name || metaName || currentUser?.email?.split('@')[0] || 'User',
             avatar_url: profileObj.avatar_url || metaAvatar,
-            deleted_at: undefined,
+            deleted_at: null,
             is_active: true,
           }
         : {
             id: userId,
             email: currentUser?.email || '',
+            phone: undefined,
             full_name: metaName || currentUser?.email?.split('@')[0] || 'User',
             avatar_url: metaAvatar,
             role: 'customer',

@@ -25,6 +25,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { SkeletonLine } from '@/components/account/SkeletonLoader';
+import { CloudinaryUploadButton } from '@/components/ui/CloudinaryUploadButton';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -255,55 +256,6 @@ function formatImageUrl(url: string | null | undefined): string {
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('error', 'Image file size must be smaller than 2MB.');
-      return;
-    }
-
-    setUploadingImage(true);
-    try {
-      // 1. Attempt upload to Supabase Storage 'avatars' bucket
-      const fileExt = file.name.split('.').pop() || 'png';
-      const filePath = `${user.id}/avatar_${Date.now()}.${fileExt}`;
-
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (!uploadErr && uploadData) {
-        const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-        const finalUrl = publicUrlData.publicUrl;
-        setAvatarPreviewError(false);
-        setProfileForm((f) => ({ ...f, avatar_url: finalUrl }));
-        showToast('success', 'Photo uploaded to Supabase Storage! Click "Save Changes" to finalize.');
-      } else {
-        // Fallback to Data URL if storage bucket RLS is not configured yet
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const dataUrl = event.target?.result as string;
-          if (dataUrl) {
-            setAvatarPreviewError(false);
-            setProfileForm((f) => ({ ...f, avatar_url: dataUrl }));
-            showToast('success', 'Photo selected! Click "Save Changes" to finalize.');
-          }
-          setUploadingImage(false);
-        };
-        reader.readAsDataURL(file);
-        return;
-      }
-    } catch {
-      showToast('error', 'Failed to process image file.');
-    } finally {
-      setUploadingImage(false);
-    }
-  };
 
   const handleRemovePhoto = () => {
     setAvatarPreviewError(false);
@@ -682,43 +634,28 @@ function formatImageUrl(url: string | null | undefined): string {
 
                 {/* Profile Picture Option */}
                 <Field label="Profile Picture">
-                  {/* Hidden File Input */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-
-                  {/* Device File Upload & Control Buttons */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploadingImage}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#FF6B00] to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-sm transition-all active:scale-95 shadow-md shadow-orange-500/20"
-                    >
-                      {uploadingImage ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin text-white" />
-                          Uploading to Storage...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          Choose Photo from Mobile / PC
-                        </>
-                      )}
-                    </button>
-
+                    <div className="flex-1">
+                      <CloudinaryUploadButton
+                        folder="eyuvashop/avatars"
+                        onUpload={(img) => {
+                          setAvatarPreviewError(false);
+                          setProfileForm(f => ({ ...f, avatar_url: img.url }));
+                          showToast('success', 'Photo selected! Click "Save Changes" to finalize.');
+                        }}
+                        maxSizeMB={2}
+                        label="Upload Photo"
+                        currentImageUrl={profileForm.avatar_url}
+                      />
+                    </div>
                     {profileForm.avatar_url && (
                       <button
                         type="button"
                         onClick={handleRemovePhoto}
-                        className="px-4 py-3 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-extrabold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                        className="px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-extrabold text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                        style={{ height: 'fit-content' }}
                       >
-                        <Trash2 className="w-4 h-4" /> Remove Photo
+                        <Trash2 className="w-4 h-4" /> Remove
                       </button>
                     )}
                   </div>
