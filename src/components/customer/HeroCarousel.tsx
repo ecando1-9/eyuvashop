@@ -26,7 +26,7 @@ export function HeroCarousel({ banners }: HeroCarouselProps) {
   };
 
   return (
-    <div className="relative w-full rounded-3xl overflow-hidden bg-gray-900 text-white min-h-[360px] md:min-h-[440px] flex items-center shadow-xl">
+    <div className="relative w-full rounded-2xl md:rounded-3xl overflow-hidden bg-gray-900 text-white min-h-[280px] sm:min-h-[320px] md:min-h-[380px] flex items-center shadow-lg">
       {/* Background Image */}
       <Image
         src={currentBanner.image_url ?? ''}
