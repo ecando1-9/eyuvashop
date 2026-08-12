@@ -11,14 +11,16 @@ export function BottomNav() {
   const cartCount = useCartStore((state) => state.getTotalCount());
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const navItems = [
     { label: 'Home', href: '/', icon: Home },
     { label: 'Categories', href: '/categories', icon: Grid },
-    { label: 'Search', href: '/search', icon: Search },
+    { label: 'Search', href: '/products', icon: Search },
     { label: 'Cart', href: '/cart', icon: ShoppingBag, badge: mounted ? cartCount : 0 },
-    { label: 'Account', href: '/account', icon: User },
+    { label: 'Account', href: '/account/settings', icon: User },
   ];
 
   return (
@@ -26,7 +28,7 @@ export function BottomNav() {
       <nav className="flex justify-between items-center max-w-md mx-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.href;
+          const isActive = mounted && pathname === item.href;
           return (
             <Link
               key={item.label}
@@ -34,10 +36,11 @@ export function BottomNav() {
               className={`flex flex-col items-center justify-center w-full py-1 relative transition-all duration-200 ${
                 isActive ? 'text-[#FF6B00] font-semibold scale-105' : 'text-gray-500 hover:text-gray-900'
               }`}
+              suppressHydrationWarning
             >
               <div className="relative">
                 <Icon className="w-5 h-5" />
-                {item.badge !== undefined && item.badge > 0 && (
+                {mounted && item.badge !== undefined && item.badge > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 bg-[#FF6B00] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-sm">
                     {item.badge}
                   </span>
@@ -51,3 +54,4 @@ export function BottomNav() {
     </div>
   );
 }
+
