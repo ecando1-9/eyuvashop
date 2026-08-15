@@ -5,7 +5,8 @@ import { useCloudinaryUpload, UploadedImage } from '@/hooks/useCloudinaryUpload'
 
 interface CloudinaryUploadButtonProps {
   folder: string;
-  onUpload: (image: UploadedImage) => void;
+  onUpload?: (image: UploadedImage) => void;
+  onUploadSuccess?: (image: UploadedImage) => void;
   maxSizeMB?: number;
   label?: string;
   className?: string;
@@ -17,6 +18,7 @@ interface CloudinaryUploadButtonProps {
 export function CloudinaryUploadButton({
   folder,
   onUpload,
+  onUploadSuccess,
   maxSizeMB = 5,
   label = 'Upload Image',
   className = '',
@@ -24,10 +26,11 @@ export function CloudinaryUploadButton({
   currentImageUrl,
   accept = 'image/jpeg,image/png,image/webp,image/gif',
 }: CloudinaryUploadButtonProps) {
+  const handleSuccess = onUploadSuccess || onUpload || (() => {});
   const { upload, isUploading, progress, error } = useCloudinaryUpload({
     folder,
     maxSizeMB,
-    onSuccess: onUpload,
+    onSuccess: handleSuccess,
   });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -98,7 +98,7 @@ export function useAuth(): UseAuthReturn {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { profile, unreadNotifications } = await fetchProfile(user.id);
-      setState((prev) => ({ ...prev, profile, unreadNotifications }));
+      setState((prev) => ({ ...prev, user, profile, unreadNotifications }));
     }
   }, [supabase, fetchProfile]);
 

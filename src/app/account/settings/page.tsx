@@ -223,14 +223,30 @@ export default function AccountSettingsPage() {
   const isFormInitialized = useRef(false);
 
   useEffect(() => {
-    if ((profile || user) && !isFormInitialized.current) {
-      setProfileForm({
-        full_name: profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '',
-        phone: (profile as any)?.phone || user?.phone || user?.user_metadata?.phone || '',
-        avatar_url: profile?.avatar_url || user?.user_metadata?.avatar_url || '',
+    if (profile || user) {
+      setProfileForm((prev) => {
+        // Only initialize or update if the user hasn't edited the form yet
+        const currentAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || '';
+        const currentName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || '';
+        const currentPhone = (profile as any)?.phone || user?.phone || user?.user_metadata?.phone || '';
+
+        if (!isFormInitialized.current) {
+          isFormInitialized.current = true;
+          return {
+            full_name: currentName,
+            phone: currentPhone,
+            avatar_url: currentAvatar,
+          };
+        }
+
+        // If form was initialized with fallback and now profile data arrives, sync if clean
+        return {
+          full_name: prev.full_name || currentName,
+          phone: prev.phone || currentPhone,
+          avatar_url: currentAvatar || prev.avatar_url,
+        };
       });
       setAvatarPreviewError(false);
-      isFormInitialized.current = true;
     }
   }, [profile, user]);
 

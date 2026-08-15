@@ -7,16 +7,20 @@ import { useAuth } from "@/hooks/useAuth";
 import { Activity, Download, RefreshCw, FileText } from "lucide-react";
 
 export default function AdminAuditLogPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) router.push("/");
-  }, [user, authLoading, router]);
+    if (!authLoading && (!user || !isAdmin)) {
+      router.push("/");
+    }
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchLogs = async () => {
     try {

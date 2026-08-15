@@ -73,10 +73,15 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
             </Link>
           )}
 
-          {/* Product Title */}
-          <Link href={`/product/${product.slug}`} className="font-semibold text-sm text-gray-900 hover:text-[#FF6B00] line-clamp-2 transition-colors">
+          {/* Product Title (English & Telugu) */}
+          <Link href={`/product/${product.slug}`} className="font-semibold text-sm text-gray-900 hover:text-[#FF6B00] line-clamp-1 transition-colors block">
             {product.title}
           </Link>
+          {product.title_te && (
+            <span className="text-xs font-bold text-[#FF6B00] line-clamp-1 block -mt-0.5">
+              {product.title_te}
+            </span>
+          )}
         </div>
 
         {/* Rating & Reviews */}

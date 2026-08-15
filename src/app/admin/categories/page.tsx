@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Plus, Edit2, Trash2, Image as ImageIcon, CheckCircle, XCircle } from "lucide-react";
 
 export default function AdminCategoriesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -16,9 +16,13 @@ export default function AdminCategoriesPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', slug: '', description: '', parent_id: '', is_featured: false, display_order: 0 });
 
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) router.push("/");
-  }, [user, authLoading, router]);
+    if (!authLoading && (!user || !isAdmin)) {
+      router.push("/");
+    }
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchCategories = async () => {
     try {
@@ -36,8 +40,8 @@ export default function AdminCategoriesPage() {
   };
 
   useEffect(() => {
-    if (user && user.role === "admin") fetchCategories();
-  }, [user]);
+    if (user && isAdmin) fetchCategories();
+  }, [user, isAdmin]);
 
   const handleSave = async () => {
     try {

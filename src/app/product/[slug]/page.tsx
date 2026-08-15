@@ -16,6 +16,9 @@ import { formatCurrency } from '@/lib/utils';
 import { Star, Minus, Plus, ShoppingCart, Heart, Store, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+import { PriceHistoryModal } from '@/components/merchant/PriceHistoryModal';
+import { History } from 'lucide-react';
+
 export default function ProductDetailPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
   const supabase = createClient();
@@ -33,6 +36,7 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [mainImage, setMainImage] = useState<string>('');
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'description' | 'specifications' | 'reviews'>('description');
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false);
 
   useEffect(() => {
     const fetchProductDetails = async () => {
@@ -201,9 +205,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
 
             {/* Right: Product Info */}
             <div className="md:w-1/2 p-6 md:p-8 flex flex-col">
-              <h1 className="text-2xl md:text-3xl font-bold text-[#0B1E3D] mb-2">{product.title}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#0B1E3D] mb-1">{product.title}</h1>
+              {product.title_te && (
+                <h2 className="text-lg font-bold text-[#FF6B00] mb-3">{product.title_te}</h2>
+              )}
               
-              <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-4 mb-4 flex-wrap">
                 <div className="flex items-center gap-1">
                   <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
                   <span className="font-semibold">{product.rating.toFixed(1)}</span>
@@ -212,13 +219,23 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 {product.brand && (
                   <div className="text-sm text-gray-500 border-l pl-4">Brand: <span className="font-medium text-[#0B1E3D]">{product.brand}</span></div>
                 )}
+                <div className="text-sm text-gray-500 border-l pl-4">
+                  Weight: <span className="font-bold text-gray-800">{product.parcel_weight_kg ? `${product.parcel_weight_kg} kg (Parcel)` : `${product.weight_kg || 0.5} kg`}</span>
+                </div>
               </div>
 
-              <div className="flex items-end gap-3 mb-6">
+              <div className="flex items-center gap-4 mb-6 flex-wrap">
                 <span className="text-3xl font-bold text-[#0B1E3D]">{formatCurrency(product.price)}</span>
                 {product.compare_at_price && product.compare_at_price > product.price && (
                   <span className="text-lg text-gray-400 line-through mb-1">{formatCurrency(product.compare_at_price)}</span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setPriceHistoryOpen(true)}
+                  className="flex items-center gap-1 text-xs font-bold text-[#FF6B00] bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg transition-colors border border-orange-200 ml-auto"
+                >
+                  <History className="w-3.5 h-3.5" /> Price History
+                </button>
               </div>
 
               {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
@@ -406,7 +423,12 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
             </div>
           </div>
         )}
-
+        <PriceHistoryModal
+          productId={product.id}
+          productTitle={product.title}
+          isOpen={priceHistoryOpen}
+          onClose={() => setPriceHistoryOpen(false)}
+        />
       </main>
 
       <Footer />

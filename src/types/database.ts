@@ -74,12 +74,15 @@ export interface Product {
   store_id: string;
   category_id: string;
   title: string;
+  title_te?: string | null;
   slug: string;
   description: string | null;
   brand?: string | null;
   sku: string | null;
   price: number;
   compare_at_price: number | null;
+  weight_kg?: number | null;
+  parcel_weight_kg?: number | null;
   rating: number;
   review_count: number;
   status: ProductStatus;
@@ -97,6 +100,22 @@ export interface Product {
   deleted_at: string | null;
   images?: ProductImage[];
   store?: Partial<Store>;
+}
+
+export interface ProductPriceHistory {
+  id: string;
+  product_id: string;
+  old_price: number | null;
+  new_price: number;
+  old_compare_at_price: number | null;
+  new_compare_at_price: number | null;
+  changed_by: string | null;
+  change_reason: string;
+  created_at: string;
+  changed_by_user?: {
+    full_name: string | null;
+    email: string;
+  };
 }
 
 export interface ProductImage {

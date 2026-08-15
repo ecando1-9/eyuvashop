@@ -7,17 +7,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MerchantLayout } from "@/components/merchant/MerchantLayout";
+import { PriceHistoryModal } from "@/components/merchant/PriceHistoryModal";
 import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Archive, 
-  Send,
-  AlertTriangle,
-  Loader2,
-  MoreVertical,
-  Filter
+  Plus, Search, Edit, Trash2, Send, History, Loader2
 } from "lucide-react";
 
 export default function MerchantProductsPage() {
@@ -30,6 +23,11 @@ export default function MerchantProductsPage() {
   const [store, setStore] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Price history modal state
+  const [historyModal, setHistoryModal] = useState<{ open: boolean; productId: string; title: string }>({
+    open: false, productId: '', title: ''
+  });
   
   const [stats, setStats] = useState({
     total: 0, published: 0, pending: 0, rejected: 0, draft: 0
@@ -44,54 +42,38 @@ export default function MerchantProductsPage() {
     setLoading(true);
     
     try {
-      const { data: profile } = await supabase
-        .from("merchant_profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-        
-      if (!profile) return;
+      const { data: mProfile } = await supabase.from('merchant_profiles').select('id').eq('user_id', user.id).single();
+      if (!mProfile) return;
       
-      const { data: storeData } = await supabase
-        .from("stores")
-        .select("id")
-        .eq("merchant_id", profile.id)
-        .single();
-        
-      if (!storeData) {
-        setLoading(false);
-        return;
-      }
-      
+      const { data: storeData } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).single();
+      if (!storeData) return;
       setStore(storeData);
-      
-      const { data: prods, error } = await supabase
-        .from("products")
+
+      const { data, error } = await supabase.from('products')
         .select(`
-          *,
+          id, title, title_te, sku, price, compare_at_price, weight_kg, parcel_weight_kg, status, approval_status, rejection_reason, stock_quantity, low_stock_threshold, created_at,
           images:product_images(url, is_primary),
           category:categories(name)
         `)
-        .eq("store_id", storeData.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-        
+        .eq('store_id', storeData.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
       if (error) throw error;
       
-      setProducts(prods || []);
-      
-      // Compute stats
-      const newStats = { total: prods?.length || 0, published: 0, pending: 0, rejected: 0, draft: 0 };
-      prods?.forEach(p => {
-        if (p.approval_status === 'approved') newStats.published++;
-        else if (p.approval_status === 'pending') newStats.pending++;
-        else if (p.approval_status === 'rejected') newStats.rejected++;
-        else newStats.draft++; // fallback
+      const allProducts = data || [];
+      setProducts(allProducts);
+
+      setStats({
+        total: allProducts.length,
+        published: allProducts.filter(p => p.status === 'published' && p.approval_status === 'approved').length,
+        pending: allProducts.filter(p => p.approval_status === 'pending').length,
+        rejected: allProducts.filter(p => p.approval_status === 'rejected').length,
+        draft: allProducts.filter(p => p.status === 'draft').length
       });
-      setStats(newStats);
-      
-    } catch (error) {
-      console.error("Error loading products:", error);
+
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -101,249 +83,237 @@ export default function MerchantProductsPage() {
     if (user) loadData();
   }, [user]);
 
-  const handleAction = async (productId: string, action: 'submit' | 'archive' | 'delete') => {
-    if (action === 'delete' && !confirm("Are you sure you want to delete this product?")) return;
-    
+  const handleAction = async (id: string, action: 'submit' | 'archive' | 'delete') => {
     try {
-      let updateData = {};
-      if (action === 'submit') {
-        updateData = { approval_status: 'pending', submitted_at: new Date().toISOString() };
+      if (action === 'delete') {
+        if (!confirm("Are you sure you want to delete this product?")) return;
+        await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+      } else if (action === 'submit') {
+        await supabase.from('products').update({ approval_status: 'pending', submitted_at: new Date().toISOString() }).eq('id', id);
       } else if (action === 'archive') {
-        updateData = { status: 'archived' };
-      } else if (action === 'delete') {
-        updateData = { deleted_at: new Date().toISOString() };
+        await supabase.from('products').update({ status: 'archived' }).eq('id', id);
       }
-
-      const { error } = await supabase
-        .from('products')
-        .update(updateData)
-        .eq('id', productId);
-
-      if (error) throw error;
-      
-      // Reload
       loadData();
-    } catch (err) {
-      console.error(`Error performing ${action}:`, err);
-      alert(`Failed to ${action} product`);
+    } catch (err: any) {
+      alert(err.message);
     }
   };
-
-  if (authLoading || loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-[#FF6B00]" />
-      </div>
-    );
-  }
-
-  if (!store) {
-    return (
-      <div className="p-6">
-        <EmptyState 
-          title="Store Not Setup" 
-          description="You need to set up your store profile before adding products."
-          actionLabel="Setup Store"
-          actionHref="/merchant/store"
-        />
-      </div>
-    );
-  }
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          (p.sku && p.sku.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    if (!matchesSearch) return false;
-    
-    if (filterStatus === 'all') return true;
-    if (filterStatus === 'archived') return p.status === 'archived';
-    
-    return p.approval_status === filterStatus;
+    if (filterStatus === 'published' && (p.status !== 'published' || p.approval_status !== 'approved')) return false;
+    if (filterStatus === 'pending' && p.approval_status !== 'pending') return false;
+    if (filterStatus === 'rejected' && p.approval_status !== 'rejected') return false;
+    if (filterStatus === 'draft' && p.status !== 'draft') return false;
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return p.title.toLowerCase().includes(q) || 
+             (p.title_te && p.title_te.toLowerCase().includes(q)) || 
+             (p.sku && p.sku.toLowerCase().includes(q));
+    }
+    return true;
   });
 
-  const getStatusBadge = (status: string, approvalStatus: string) => {
-    if (status === 'archived') return <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-full text-xs">Archived</span>;
-    
-    switch (approvalStatus) {
-      case 'approved': return <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Published</span>;
-      case 'pending': return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs">Pending</span>;
-      case 'rejected': return <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs">Rejected</span>;
-      default: return <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">Draft</span>;
-    }
-  };
+  if (authLoading) {
+    return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF6B00]" /></div>;
+  }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">Manage your store's product catalog.</p>
-        </div>
-        <Link 
-          href="/merchant/products/new"
-          className="flex items-center space-x-2 bg-[#FF6B00] hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New Product</span>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        {[
-          { label: 'Total', value: stats.total, color: 'text-gray-900' },
-          { label: 'Published', value: stats.published, color: 'text-green-600' },
-          { label: 'Pending', value: stats.pending, color: 'text-yellow-600' },
-          { label: 'Rejected', value: stats.rejected, color: 'text-red-600' },
-          { label: 'Drafts', value: stats.draft, color: 'text-gray-500' }
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-500">{stat.label}</p>
-            <p className={`text-2xl font-semibold mt-1 ${stat.color}`}>{stat.value}</p>
+    <MerchantLayout title="Product Management" subtitle="Create, edit, and track approval status of your store products">
+      <div className="space-y-6">
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 text-center">
+            <span className="text-xs text-gray-500 font-semibold uppercase">Total SKUs</span>
+            <p className="text-2xl font-extrabold text-gray-900">{stats.total}</p>
           </div>
-        ))}
-      </div>
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 text-center">
+            <span className="text-xs text-gray-500 font-semibold uppercase">Published</span>
+            <p className="text-2xl font-extrabold text-emerald-600">{stats.published}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 text-center">
+            <span className="text-xs text-gray-500 font-semibold uppercase">Pending</span>
+            <p className="text-2xl font-extrabold text-amber-600">{stats.pending}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 text-center">
+            <span className="text-xs text-gray-500 font-semibold uppercase">Rejected</span>
+            <p className="text-2xl font-extrabold text-red-600">{stats.rejected}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 text-center">
+            <span className="text-xs text-gray-500 font-semibold uppercase">Drafts</span>
+            <p className="text-2xl font-extrabold text-gray-600">{stats.draft}</p>
+          </div>
+        </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex space-x-2 overflow-x-auto w-full md:w-auto">
-            {['all', 'approved', 'pending', 'draft', 'rejected', 'archived'].map(status => (
+        {/* Toolbar */}
+        <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-wrap gap-2">
+            {['all', 'published', 'pending', 'rejected', 'draft'].map((status) => (
               <button
                 key={status}
                 onClick={() => setFilterStatus(status)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${
                   filterStatus === status 
-                    ? 'bg-[#FF6B00] text-white' 
+                    ? 'bg-[#FF6B00] text-white shadow-xs' 
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
+                {status}
               </button>
             ))}
           </div>
-          
-          <div className="relative w-full md:w-64">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Search products..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-[#FF6B00] focus:border-[#FF6B00]"
-            />
+
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="relative flex-1 md:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by English or Telugu title..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+              />
+            </div>
+            
+            <Link
+              href="/merchant/products/new"
+              className="bg-[#FF6B00] text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-[#e05e00] transition-colors shadow-xs"
+            >
+              <Plus className="w-4 h-4" /> Add Product
+            </Link>
           </div>
         </div>
 
-        {filteredProducts.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Price</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredProducts.map(product => {
-                  const primaryImg = product.images?.find((img: any) => img.is_primary)?.url || product.images?.[0]?.url;
-                  const isLowStock = product.stock_quantity <= product.low_stock_threshold;
-                  
-                  return (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="h-12 w-12 rounded bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
-                            {primaryImg ? (
-                              <img src={primaryImg} alt={product.title} className="h-full w-full object-cover" />
-                            ) : (
-                              <div className="text-gray-400 text-xs">No img</div>
-                            )}
+        {/* Table */}
+        <div className="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-8 text-center text-gray-500 text-sm">Loading products...</div>
+          ) : filteredProducts.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase">
+                    <th className="p-4">Product Name (EN / TE)</th>
+                    <th className="p-4">SKU & Weight</th>
+                    <th className="p-4">Category</th>
+                    <th className="p-4">Price & History</th>
+                    <th className="p-4">Stock</th>
+                    <th className="p-4">Approval Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-sm">
+                  {filteredProducts.map((product) => {
+                    const primaryImg = product.images?.find((img: any) => img.is_primary)?.url || product.images?.[0]?.url;
+                    const displayWeight = product.parcel_weight_kg ? `${product.parcel_weight_kg} kg (Parcel)` : `${product.weight_kg || 0.5} kg`;
+
+                    return (
+                      <tr key={product.id} className="hover:bg-gray-50/80 transition-colors">
+                        <td className="p-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                              {primaryImg ? (
+                                <img src={primaryImg} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No img</div>
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-900 line-clamp-1">{product.title}</span>
+                              {product.title_te && (
+                                <span className="text-xs text-[#FF6B00] font-medium block">{product.title_te}</span>
+                              )}
+                              {product.rejection_reason && (
+                                <p className="text-xs text-red-600 font-medium">Reason: {product.rejection_reason}</p>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 line-clamp-1">{product.title}</p>
-                            <p className="text-xs text-gray-500">SKU: {product.sku || 'N/A'}</p>
-                          </div>
-                        </div>
-                        {product.approval_status === 'rejected' && product.rejection_reason && (
-                          <div className="mt-2 text-xs text-red-600 flex items-start">
-                            <AlertTriangle className="w-3 h-3 mr-1 mt-0.5 shrink-0" />
-                            <span>{product.rejection_reason}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {product.category?.name || 'Uncategorized'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {formatCurrency(product.price)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center">
-                          <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                            {product.stock_quantity}
+                        </td>
+                        <td className="p-4">
+                          <span className="text-gray-500 text-xs font-mono block">{product.sku || '-'}</span>
+                          <span className="text-[10px] text-gray-400 font-bold bg-gray-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                            {displayWeight}
                           </span>
-                          {isLowStock && <AlertTriangle className="w-4 h-4 ml-1 text-red-500" />}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(product.status, product.approval_status)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
-                          <button className="text-gray-400 hover:text-[#FF6B00]" title="Edit">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          
-                          {(product.approval_status === 'draft' || product.approval_status === 'rejected') && (
-                            <button 
-                              onClick={() => handleAction(product.id, 'submit')}
-                              className="text-gray-400 hover:text-green-600" 
-                              title="Submit for Approval"
+                        </td>
+                        <td className="p-4 text-gray-600 text-xs">{product.category?.name || 'Uncategorized'}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setHistoryModal({ open: true, productId: product.id, title: product.title })}
+                              className="p-1 text-gray-400 hover:text-[#FF6B00] hover:bg-orange-50 rounded-md transition-colors"
+                              title="View Price History"
                             >
-                              <Send className="w-4 h-4" />
+                              <History className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          
-                          {product.status !== 'archived' && (
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
+                            product.stock_quantity <= 0 ? 'bg-red-100 text-red-700' :
+                            product.stock_quantity <= product.low_stock_threshold ? 'bg-amber-100 text-amber-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {product.stock_quantity} in stock
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                            product.approval_status === 'approved' && product.status === 'published' ? 'bg-emerald-100 text-emerald-800' :
+                            product.approval_status === 'pending' ? 'bg-amber-100 text-amber-800' :
+                            product.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {product.approval_status === 'approved' ? product.status : product.approval_status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {product.approval_status === 'draft' && (
+                              <button 
+                                onClick={() => handleAction(product.id, 'submit')}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md" 
+                                title="Submit for Approval"
+                              >
+                                <Send className="w-4 h-4" />
+                              </button>
+                            )}
+                            
                             <button 
-                              onClick={() => handleAction(product.id, 'archive')}
-                              className="text-gray-400 hover:text-orange-600" 
-                              title="Archive"
+                              onClick={() => handleAction(product.id, 'delete')}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" 
+                              title="Delete"
                             >
-                              <Archive className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
-                          
-                          <button 
-                            onClick={() => handleAction(product.id, 'delete')}
-                            className="text-gray-400 hover:text-red-600" 
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="py-12">
-            <EmptyState 
-              title="No products found" 
-              description={searchQuery ? `No products match "${searchQuery}"` : "You haven't added any products yet."}
-              actionLabel={searchQuery ? "Clear Search" : "Add Product"}
-              actionHref={searchQuery ? "/merchant/products" : "/merchant/products/new"}
-            />
-          </div>
-        )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-12">
+              <EmptyState 
+                title="No products found" 
+                description={searchQuery ? `No products match "${searchQuery}"` : "You haven't added any products yet."}
+                actionLabel={searchQuery ? "Clear Search" : "Add Product"}
+                actionHref={searchQuery ? "/merchant/products" : "/merchant/products/new"}
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <PriceHistoryModal
+        productId={historyModal.productId}
+        productTitle={historyModal.title}
+        isOpen={historyModal.open}
+        onClose={() => setHistoryModal({ open: false, productId: '', title: '' })}
+      />
+    </MerchantLayout>
   );
 }

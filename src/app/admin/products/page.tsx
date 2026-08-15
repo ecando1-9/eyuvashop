@@ -12,7 +12,7 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function AdminProductsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -28,11 +28,13 @@ export default function AdminProductsPage() {
 
   const tabs = ["All", "Pending Approval", "Published", "Rejected", "Draft", "Archived"];
 
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || !isAdmin)) {
       router.push("/");
     }
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchProducts = async () => {
     try {
@@ -60,10 +62,10 @@ export default function AdminProductsPage() {
   };
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && isAdmin) {
       fetchProducts();
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const handleUpdateStatus = async (productId: string, status: string, reason: string = "") => {
     try {

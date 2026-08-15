@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Search, Eye, Filter, ChevronDown, ChevronUp } from "lucide-react";
 
 export default function AdminOrdersPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -20,11 +20,13 @@ export default function AdminOrdersPage() {
 
   const tabs = ["All", "Pending", "Confirmed", "Shipped", "Delivered", "Cancelled", "Refunded"];
 
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || !isAdmin)) {
       router.push("/");
     }
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchOrders = async () => {
     try {

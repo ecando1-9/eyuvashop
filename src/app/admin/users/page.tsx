@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { 
-  Search, Users, Shield, UserX, UserCheck, MoreVertical, ShieldAlert
+  Search, Users, Shield, UserX, UserCheck, Eye, X, Mail, Phone, Calendar, CheckCircle2, ShieldAlert
 } from "lucide-react";
 
 export default function AdminUsersPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -17,12 +17,15 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
 
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || !isAdmin)) {
       router.push("/");
     }
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchUsers = async () => {
     try {
@@ -41,23 +44,26 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && isAdmin) {
       fetchUsers();
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
-  const handleToggleStatus = async (userId: string, currentStatus: boolean, role: string) => {
-    // Prevent admins from suspending themselves or other admins easily without specific checks, but for this basic UI:
-    if (role === 'admin' && userId === user?.id) {
-      alert("You cannot suspend your own account.");
+  const handleToggleStatus = async (targetUser: any) => {
+    if (targetUser.role === 'admin' && targetUser.id === user?.id) {
+      alert("You cannot suspend your own admin account.");
       return;
     }
 
+    const newStatus = !targetUser.is_active;
+    const actionText = newStatus ? "Reactivate" : "Block / Suspend";
+    if (!confirm(`Are you sure you want to ${actionText} user ${targetUser.email}?`)) return;
+
     try {
-      setActionLoading(userId);
+      setActionLoading(targetUser.id);
       const { error } = await supabase.from('users')
-        .update({ is_active: !currentStatus })
-        .eq('id', userId);
+        .update({ is_active: newStatus })
+        .eq('id', targetUser.id);
 
       if (error) throw error;
       
@@ -65,145 +71,275 @@ export default function AdminUsersPage() {
       await supabase.from('audit_logs').insert({
         actor_id: user?.id,
         actor_role: 'admin',
-        action: !currentStatus ? 'REACTIVATE_USER' : 'SUSPEND_USER',
+        action: newStatus ? 'REACTIVATE_USER' : 'SUSPEND_USER',
         entity_type: 'user',
-        entity_id: userId
+        entity_id: targetUser.id
       });
 
       await fetchUsers();
+      if (selectedUser?.id === targetUser.id) {
+        setSelectedUser({ ...selectedUser, is_active: newStatus });
+      }
     } catch (err: any) {
-      alert("Error updating user: " + err.message);
+      alert("Error updating user status: " + err.message);
     } finally {
       setActionLoading(null);
     }
   };
 
+  const getRoleDisplay = (role: string) => {
+    if (role === 'admin') return 'Admin';
+    if (role === 'merchant') return 'Merchant';
+    return 'User';
+  };
+
   const filteredUsers = usersList.filter(u => {
     const term = search.toLowerCase();
-    return (u.full_name?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term));
+    return (
+      (u.full_name?.toLowerCase() || '').includes(term) || 
+      (u.email?.toLowerCase() || '').includes(term) ||
+      getRoleDisplay(u.role).toLowerCase().includes(term)
+    );
   });
 
   const stats = {
     total: usersList.length,
     active: usersList.filter(u => u.is_active).length,
-    customers: usersList.filter(u => u.role === 'customer').length,
+    users: usersList.filter(u => u.role !== 'merchant' && u.role !== 'admin').length,
     merchants: usersList.filter(u => u.role === 'merchant').length,
     admins: usersList.filter(u => u.role === 'admin').length,
     suspended: usersList.filter(u => !u.is_active).length,
   };
 
   if (authLoading || (loading && usersList.length === 0)) {
-    return <div className="p-6">Loading users...</div>; // Simplify for brevity in code generation
+    return <div className="p-6">Loading user directory...</div>;
   }
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-sm text-gray-500">Manage customers, merchants, and admins</p>
+        <p className="text-sm text-gray-500">Manage Users, Merchants, and Admins</p>
       </div>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-center">
-          <p className="text-xs text-gray-500 uppercase">Total</p>
-          <p className="text-xl font-bold">{stats.total}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold">Total Accounts</p>
+          <p className="text-2xl font-extrabold text-gray-900">{stats.total}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-center">
-          <p className="text-xs text-gray-500 uppercase">Customers</p>
-          <p className="text-xl font-bold text-blue-600">{stats.customers}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold">Users</p>
+          <p className="text-2xl font-extrabold text-blue-600">{stats.users}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-center">
-          <p className="text-xs text-gray-500 uppercase">Merchants</p>
-          <p className="text-xl font-bold text-orange-600">{stats.merchants}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold">Merchants</p>
+          <p className="text-2xl font-extrabold text-orange-600">{stats.merchants}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-center">
-          <p className="text-xs text-gray-500 uppercase">Admins</p>
-          <p className="text-xl font-bold text-purple-600">{stats.admins}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold">Admins</p>
+          <p className="text-2xl font-extrabold text-purple-600">{stats.admins}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 text-center">
-          <p className="text-xs text-gray-500 uppercase">Suspended</p>
-          <p className="text-xl font-bold text-red-600">{stats.suspended}</p>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold">Active</p>
+          <p className="text-2xl font-extrabold text-green-600">{stats.active}</p>
+        </div>
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 text-center">
+          <p className="text-xs text-gray-500 uppercase font-semibold font-semibold">Suspended / Blocked</p>
+          <p className="text-2xl font-extrabold text-red-600">{stats.suspended}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-4 bg-gray-50 border-b border-gray-200">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search by name, email, or role..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-[#FF6B00] focus:border-[#FF6B00]"
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-[#FF6B00] focus:border-[#FF6B00]"
             />
           </div>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
+            <thead className="bg-gray-100/70 text-gray-700 font-semibold border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 font-medium">User</th>
-                <th className="px-6 py-4 font-medium">Role</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Joined</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+                <th className="px-6 py-4 font-semibold">User Details</th>
+                <th className="px-6 py-4 font-semibold">Role</th>
+                <th className="px-6 py-4 font-semibold">Status</th>
+                <th className="px-6 py-4 font-semibold">Joined Date</th>
+                <th className="px-6 py-4 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                        {u.avatar_url ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" /> : <Users className="h-5 w-5 text-gray-400" />}
+              {filteredUsers.map((u) => {
+                const roleText = getRoleDisplay(u.role);
+                return (
+                  <tr key={u.id} className="hover:bg-gray-50/80 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Users className="h-5 w-5 text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">{u.full_name || 'No Name'}</p>
+                          <p className="text-xs text-gray-500">{u.email}</p>
+                          {u.phone && <p className="text-xs text-gray-400">{u.phone}</p>}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{u.full_name || 'No Name'}</p>
-                        <p className="text-xs text-gray-500">{u.email}</p>
-                        {u.phone && <p className="text-xs text-gray-400">{u.phone}</p>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium uppercase tracking-wide
-                      ${u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
-                        u.role === 'merchant' ? 'bg-orange-100 text-orange-800' : 
-                        'bg-blue-100 text-blue-800'}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {u.is_active ? (
-                      <span className="flex items-center text-green-600 text-xs font-medium"><span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span> Active</span>
-                    ) : (
-                      <span className="flex items-center text-red-600 text-xs font-medium"><span className="w-2 h-2 rounded-full bg-red-500 mr-2"></span> Suspended</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-gray-500">
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => handleToggleStatus(u.id, u.is_active, u.role)}
-                      disabled={actionLoading === u.id || (u.role === 'admin' && u.id === user?.id)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium border ${
-                        u.is_active 
-                          ? 'border-red-200 text-red-600 hover:bg-red-50' 
-                          : 'border-green-200 text-green-600 hover:bg-green-50'
-                      } disabled:opacity-50`}
-                    >
-                      {actionLoading === u.id ? '...' : (u.is_active ? 'Suspend' : 'Reactivate')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                        roleText === 'Admin' 
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200' 
+                          : roleText === 'Merchant' 
+                          ? 'bg-orange-100 text-orange-800 border border-orange-200' 
+                          : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {roleText}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {u.is_active ? (
+                        <span className="inline-flex items-center text-xs font-semibold text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
+                          <span className="w-2 h-2 rounded-full bg-green-500 mr-1.5 animate-pulse"></span>
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center text-xs font-semibold text-red-700 bg-red-50 px-2.5 py-1 rounded-full border border-red-200">
+                          <span className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></span>
+                          Blocked / Suspended
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">
+                      {new Date(u.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                    </td>
+                    <td className="px-6 py-4 text-right space-x-2">
+                      <button
+                        onClick={() => setSelectedUser(u)}
+                        className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
+                      >
+                        <Eye className="w-3.5 h-3.5 inline mr-1" />
+                        View
+                      </button>
+
+                      {u.role !== 'admin' ? (
+                        <button 
+                          onClick={() => handleToggleStatus(u)}
+                          disabled={actionLoading === u.id}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                            u.is_active 
+                              ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100' 
+                              : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                          } disabled:opacity-50`}
+                        >
+                          {actionLoading === u.id ? '...' : (u.is_active ? 'Block / Suspend' : 'Reactivate')}
+                        </button>
+                      ) : (
+                        <span className="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 rounded-lg border border-purple-200 inline-block">
+                          Admin Protected
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* User Details Modal */}
+      {selectedUser && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+            <button 
+              onClick={() => setSelectedUser(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-2 border-[#FF6B00] shadow-md flex-shrink-0">
+                {selectedUser.avatar_url ? (
+                  <img src={selectedUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Users className="h-8 w-8 text-gray-400" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedUser.full_name || 'No Name Set'}</h3>
+                <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
+                  <Mail className="w-3.5 h-3.5 text-gray-400" />
+                  {selectedUser.email}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
+                    selectedUser.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                    selectedUser.role === 'merchant' ? 'bg-orange-100 text-orange-800' :
+                    'bg-blue-100 text-blue-800'
+                  }`}>
+                    {getRoleDisplay(selectedUser.role)}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    selectedUser.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {selectedUser.is_active ? 'Active' : 'Blocked / Suspended'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl text-sm border border-gray-100">
+              <div>
+                <span className="text-xs text-gray-400 font-medium block">Phone Number</span>
+                <span className="font-semibold text-gray-800 flex items-center gap-1.5 mt-0.5">
+                  <Phone className="w-3.5 h-3.5 text-gray-400" />
+                  {selectedUser.phone || 'Not provided'}
+                </span>
+              </div>
+              <div>
+                <span className="text-xs text-gray-400 font-medium block">Account Created</span>
+                <span className="font-semibold text-gray-800 flex items-center gap-1.5 mt-0.5">
+                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                  {new Date(selectedUser.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              {selectedUser.role !== 'admin' && (
+                <button
+                  onClick={() => handleToggleStatus(selectedUser)}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold border ${
+                    selectedUser.is_active
+                      ? 'border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                      : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                  }`}
+                >
+                  {selectedUser.is_active ? 'Block / Suspend User' : 'Reactivate User'}
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="px-4 py-2 bg-gray-900 text-white font-semibold rounded-xl hover:bg-gray-800"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

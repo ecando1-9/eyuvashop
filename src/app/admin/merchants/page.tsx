@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 export default function AdminMerchantsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const supabase = createClient();
 
@@ -19,17 +19,22 @@ export default function AdminMerchantsPage() {
   const [activeTab, setActiveTab] = useState("All");
   const [search, setSearch] = useState("");
   const [selectedMerchant, setSelectedMerchant] = useState<any | null>(null);
-  const [actionModal, setActionModal] = useState<{type: 'approve' | 'reject' | 'suspend' | null, reason: string}>({ type: null, reason: "" });
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [actionModal, setActionModal] = useState<{ open: boolean; type: 'approve' | 'reject' | 'suspend' | null }>({
+    open: false, type: null
+  });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
 
   const tabs = ["All", "Pending", "Active", "Suspended", "Rejected"];
 
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+
   useEffect(() => {
-    if (!authLoading && (!user || user.role !== "admin")) {
+    if (!authLoading && (!user || !isAdmin)) {
       router.push("/");
     }
-  }, [user, authLoading, router]);
+  }, [user, profile, authLoading, isAdmin, router]);
 
   const fetchMerchants = async () => {
     try {
@@ -54,10 +59,10 @@ export default function AdminMerchantsPage() {
   };
 
   useEffect(() => {
-    if (user && user.role === "admin") {
+    if (user && isAdmin) {
       fetchMerchants();
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const handleUpdateStatus = async () => {
     if (!selectedMerchant || !actionModal.type) return;
@@ -73,13 +78,14 @@ export default function AdminMerchantsPage() {
         p_admin_id: user?.id,
         p_merchant_id: selectedMerchant.id,
         p_status: newStatus,
-        p_rejection_reason: actionModal.reason
+        p_rejection_reason: rejectionReason
       });
 
       if (error) throw error;
 
       await fetchMerchants();
-      setActionModal({ type: null, reason: "" });
+      setActionModal({ open: false, type: null });
+      setRejectionReason("");
       setSelectedMerchant(null);
     } catch (err: any) {
       alert("Error updating status: " + err.message);
@@ -283,7 +289,8 @@ export default function AdminMerchantsPage() {
               <h3 className="font-bold text-lg text-gray-900">Merchant Profile</h3>
               <button onClick={() => {
                 setSelectedMerchant(null);
-                setActionModal({ type: null, reason: "" });
+                setActionModal({ open: false, type: null });
+                setRejectionReason("");
               }} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
@@ -307,22 +314,22 @@ export default function AdminMerchantsPage() {
                         className="w-full border-gray-300 rounded-md shadow-sm p-3 focus:ring-[#FF6B00] focus:border-[#FF6B00] border"
                         rows={4}
                         placeholder={`Please provide a reason for ${actionModal.type === 'reject' ? 'rejection' : 'suspension'}...`}
-                        value={actionModal.reason}
-                        onChange={e => setActionModal({...actionModal, reason: e.target.value})}
+                        value={rejectionReason}
+                        onChange={e => setRejectionReason(e.target.value)}
                       />
                     </div>
                   )}
 
                   <div className="flex gap-3 justify-end mt-6">
                     <button 
-                      onClick={() => setActionModal({ type: null, reason: "" })}
+                      onClick={() => setActionModal({ open: false, type: null })}
                       className="px-4 py-2 border border-gray-300 rounded-md text-gray-700"
                     >
                       Cancel
                     </button>
                     <button 
                       onClick={handleUpdateStatus}
-                      disabled={actionLoading || ((actionModal.type === 'reject' || actionModal.type === 'suspend') && !actionModal.reason)}
+                      disabled={actionLoading || ((actionModal.type === 'reject' || actionModal.type === 'suspend') && !rejectionReason.trim())}
                       className={`px-4 py-2 text-white rounded-md ${
                         actionModal.type === 'approve' ? 'bg-green-600 hover:bg-green-700' 
                         : 'bg-red-600 hover:bg-red-700'
@@ -382,13 +389,13 @@ export default function AdminMerchantsPage() {
                     {selectedMerchant.verification_status === 'pending' && (
                       <>
                         <button 
-                          onClick={() => setActionModal({ type: 'reject', reason: "" })}
+                          onClick={() => setActionModal({ open: true, type: 'reject' })}
                           className="px-4 py-2 bg-red-50 text-red-700 border border-red-200 rounded-md font-medium flex items-center gap-2 hover:bg-red-100"
                         >
                           <XCircle className="h-4 w-4" /> Reject
                         </button>
                         <button 
-                          onClick={() => setActionModal({ type: 'approve', reason: "" })}
+                          onClick={() => setActionModal({ open: true, type: 'approve' })}
                           className="px-4 py-2 bg-green-600 text-white rounded-md font-medium flex items-center gap-2 hover:bg-green-700"
                         >
                           <ShieldCheck className="h-4 w-4" /> Approve
@@ -397,7 +404,7 @@ export default function AdminMerchantsPage() {
                     )}
                     {selectedMerchant.verification_status === 'approved' && (
                       <button 
-                        onClick={() => setActionModal({ type: 'suspend', reason: "" })}
+                        onClick={() => setActionModal({ open: true, type: 'suspend' })}
                         className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-md font-medium flex items-center gap-2 hover:bg-gray-200"
                       >
                         <Ban className="h-4 w-4" /> Suspend Account
@@ -405,7 +412,7 @@ export default function AdminMerchantsPage() {
                     )}
                     {selectedMerchant.verification_status === 'suspended' && (
                        <button 
-                       onClick={() => setActionModal({ type: 'approve', reason: "" })}
+                       onClick={() => setActionModal({ open: true, type: 'approve' })}
                        className="px-4 py-2 bg-green-600 text-white rounded-md font-medium flex items-center gap-2 hover:bg-green-700"
                      >
                        <ShieldCheck className="h-4 w-4" /> Reactivate Account
