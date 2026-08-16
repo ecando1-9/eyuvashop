@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { 
   Search, Users, Shield, UserX, UserCheck, Eye, X, Mail, Phone, Calendar, CheckCircle2, ShieldAlert
 } from "lucide-react";
+import { AdminLayout } from "@/components/admin/AdminLayout";
 
 export default function AdminUsersPage() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -50,35 +51,24 @@ export default function AdminUsersPage() {
   }, [user, isAdmin]);
 
   const handleToggleStatus = async (targetUser: any) => {
-    if (targetUser.role === 'admin' && targetUser.id === user?.id) {
-      alert("You cannot suspend your own admin account.");
+    const nextStatus = !targetUser.is_active;
+    const actionName = nextStatus ? "Reactivate" : "Block / Suspend";
+    if (!confirm(`Are you sure you want to ${actionName} ${targetUser.full_name || targetUser.email}?`)) {
       return;
     }
 
-    const newStatus = !targetUser.is_active;
-    const actionText = newStatus ? "Reactivate" : "Block / Suspend";
-    if (!confirm(`Are you sure you want to ${actionText} user ${targetUser.email}?`)) return;
-
     try {
       setActionLoading(targetUser.id);
-      const { error } = await supabase.from('users')
-        .update({ is_active: newStatus })
+      const { error } = await supabase
+        .from('users')
+        .update({ is_active: nextStatus, updated_at: new Date().toISOString() })
         .eq('id', targetUser.id);
 
       if (error) throw error;
       
-      // Log audit
-      await supabase.from('audit_logs').insert({
-        actor_id: user?.id,
-        actor_role: 'admin',
-        action: newStatus ? 'REACTIVATE_USER' : 'SUSPEND_USER',
-        entity_type: 'user',
-        entity_id: targetUser.id
-      });
-
       await fetchUsers();
       if (selectedUser?.id === targetUser.id) {
-        setSelectedUser({ ...selectedUser, is_active: newStatus });
+        setSelectedUser({ ...selectedUser, is_active: nextStatus });
       }
     } catch (err: any) {
       alert("Error updating user status: " + err.message);
@@ -111,16 +101,11 @@ export default function AdminUsersPage() {
     suspended: usersList.filter(u => !u.is_active).length,
   };
 
-  if (authLoading || (loading && usersList.length === 0)) {
-    return <div className="p-6">Loading user directory...</div>;
-  }
+  if (authLoading) return null;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-sm text-gray-500">Manage Users, Merchants, and Admins</p>
-      </div>
+    <AdminLayout title="User Accounts & Access Control" subtitle="Oversee marketplace customers, seller permissions, and security status">
+      <div className="space-y-6">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
@@ -340,6 +325,7 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
