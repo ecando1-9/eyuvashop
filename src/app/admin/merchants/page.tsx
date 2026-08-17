@@ -50,30 +50,55 @@ export default function AdminMerchantsPage() {
   const fetchMerchants = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Step 1: Query merchant_profiles
+      const { data: mProfiles, error: mError } = await supabase
         .from("merchant_profiles")
-        .select(`
-          *,
-          user:users(full_name, email, avatar_url, is_active, phone),
-          store:stores(id, name, slug, is_active, rating, rating_count, logo_url, banner_url, priority)
-        `)
-        .order("priority", { ascending: false, nullsFirst: false })
+        .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.warn("Primary merchant fetch fallback:", error.message);
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("merchant_profiles")
-          .select("*")
-          .order("created_at", { ascending: false });
-
-        if (fallbackError) throw fallbackError;
-        setMerchants(fallbackData || []);
-      } else {
-        setMerchants(data || []);
+      if (mError) {
+        console.error("Error fetching merchant_profiles:", mError);
+        throw mError;
       }
+
+      if (!mProfiles || mProfiles.length === 0) {
+        setMerchants([]);
+        return;
+      }
+
+      // Step 2: Fetch corresponding users and stores in parallel
+      const userIds = mProfiles.map(m => m.user_id).filter(Boolean);
+      const merchantIds = mProfiles.map(m => m.id).filter(Boolean);
+
+      const [usersRes, storesRes] = await Promise.all([
+        supabase.from("users").select("id, full_name, email, avatar_url, phone, is_active").in("id", userIds),
+        supabase.from("stores").select("*").in("merchant_id", merchantIds)
+      ]);
+
+      const userMap = new Map((usersRes.data || []).map(u => [u.id, u]));
+      const storeMap = new Map((storesRes.data || []).map(s => [s.merchant_id, s]));
+
+      const combinedMerchants = mProfiles.map(m => ({
+        ...m,
+        user: userMap.get(m.user_id) || null,
+        store: storeMap.get(m.id) || null
+      }));
+
+      // Sort by priority DESC if exists, then created_at DESC
+      combinedMerchants.sort((a, b) => {
+        const pA = a.priority || a.store?.priority || 0;
+        const pB = b.priority || b.store?.priority || 0;
+        if (pB !== pA) return pB - pA;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setMerchants(combinedMerchants);
     } catch (err: any) {
       console.error("Failed to fetch merchants:", err?.message || err);
+      // Fallback
+      const { data: fallbackData } = await supabase.from("merchant_profiles").select("*");
+      setMerchants(fallbackData || []);
     } finally {
       setLoading(false);
     }

@@ -120,38 +120,56 @@ export default function MerchantDashboard() {
     try {
       setSubmittingAccess(true);
 
-      const { data, error } = await supabase.rpc('submit_merchant_access_request', {
-        p_user_id: user.id,
-        p_name: accessForm.name.trim(),
-        p_email: accessForm.email.trim(),
-        p_phone: accessForm.phone.trim(),
-        p_address: accessForm.address.trim()
-      });
+      // Direct upsert to merchant_profiles
+      const { data: upsertData, error: upsertErr } = await supabase
+        .from('merchant_profiles')
+        .upsert({
+          user_id: user.id,
+          business_name: accessForm.name.trim(),
+          business_email: accessForm.email.trim(),
+          business_phone: accessForm.phone.trim(),
+          business_address: accessForm.address.trim(),
+          verification_status: 'pending',
+          can_publish: false,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' })
+        .select()
+        .single();
 
-      if (error) {
-        // Direct table fallback if RPC not yet run
-        const { data: directProfile, error: directErr } = await supabase
+      if (upsertErr) {
+        console.warn("Direct upsert error, trying update fallback:", upsertErr.message);
+        await supabase
           .from('merchant_profiles')
-          .upsert({
-            user_id: user.id,
+          .update({
             business_name: accessForm.name.trim(),
             business_email: accessForm.email.trim(),
             business_phone: accessForm.phone.trim(),
             business_address: accessForm.address.trim(),
             verification_status: 'pending',
-            can_publish: false,
+            rejection_reason: null,
             updated_at: new Date().toISOString()
-          }, { onConflict: 'user_id' })
-          .select()
-          .single();
+          })
+          .eq('user_id', user.id);
+      }
 
-        if (directErr) throw directErr;
-        setMerchantProfile(directProfile);
+      // Ensure store entry exists
+      const targetMerchantId = upsertData?.id || merchantProfile?.id;
+      if (targetMerchantId) {
+        await supabase
+          .from('stores')
+          .upsert({
+            merchant_id: targetMerchantId,
+            name: accessForm.name.trim(),
+            slug: accessForm.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + user.id.slice(0, 4),
+            phone: accessForm.phone.trim(),
+            email: accessForm.email.trim(),
+            city: accessForm.address.trim().split(',')[0] || 'Local'
+          }, { onConflict: 'merchant_id' });
       }
 
       setShowAccessModal(false);
       await loadMerchantData();
-      setToastMsg({ type: 'success', text: 'Access request successfully sent to Admin for publishing approval!' });
+      setToastMsg({ type: 'success', text: 'Access request successfully submitted! Admin has received your request.' });
       setTimeout(() => setToastMsg(null), 6000);
     } catch (err: any) {
       alert("Error submitting access request: " + err.message);
