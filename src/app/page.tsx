@@ -31,8 +31,38 @@ export default function HomePage() {
     async function fetchData() {
       try {
         const { data: rpcData, error } = await supabase.rpc('get_homepage_data');
-        if (error) {
-          console.error('Error fetching homepage data:', error);
+        if (error || !rpcData) {
+          console.warn('RPC get_homepage_data fallback to direct queries:', error?.message);
+          
+          // Direct fallback fetching
+          const [bannersRes, categoriesRes, productsRes, storesRes] = await Promise.all([
+            supabase.from('banners').select('*').eq('is_active', true).order('display_order', { ascending: true }),
+            supabase.from('categories').select('*').eq('approval_status', 'approved').order('display_order', { ascending: true }),
+            supabase.from('products').select(`
+              id, title, title_te, slug, price, compare_at_price, rating, review_count, status, approval_status, is_featured, is_trending, is_best_seller, is_new_arrival, created_at, store_id, category_id, description, sku, stock_quantity, low_stock_threshold,
+              images:product_images(url, is_primary),
+              store:stores(name, slug)
+            `).eq('status', 'published').eq('approval_status', 'approved').is('deleted_at', null).order('created_at', { ascending: false }).limit(20),
+            supabase.from('stores').select('*').eq('is_active', true).limit(8)
+          ]);
+
+          const directProducts = (productsRes.data || []).map((p: any) => ({
+            ...p,
+            primary_image: p.images?.find((img: any) => img.is_primary)?.url || p.images?.[0]?.url,
+            store_name: p.store?.name,
+            store_slug: p.store?.slug
+          }));
+
+          setData({
+            banners: bannersRes.data || [],
+            categories: categoriesRes.data || [],
+            trending_products: directProducts.filter((p: any) => p.is_trending).length > 0 
+              ? directProducts.filter((p: any) => p.is_trending) 
+              : directProducts,
+            featured_products: directProducts.filter((p: any) => p.is_featured),
+            products: directProducts,
+            stores: storesRes.data || []
+          });
         } else if (rpcData) {
           setData(rpcData as any);
         }
