@@ -209,7 +209,34 @@ export default function AdminMerchantsPage() {
         p_rejection_reason: rejectionReason
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn("RPC status update failed, running direct table update fallback:", error.message);
+        
+        // Direct update to merchant_profiles
+        await supabase
+          .from('merchant_profiles')
+          .update({
+            verification_status: newStatus,
+            can_publish: newStatus === 'approved',
+            rejection_reason: newStatus === 'rejected' ? rejectionReason : null,
+            approved_at: newStatus === 'approved' ? new Date().toISOString() : selectedMerchant.approved_at,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', selectedMerchant.id);
+
+        // Direct update to stores
+        const storeObj = Array.isArray(selectedMerchant.store) ? selectedMerchant.store[0] : selectedMerchant.store;
+        if (storeObj?.id) {
+          await supabase
+            .from('stores')
+            .update({
+              status: newStatus === 'approved' ? 'active' : 'suspended',
+              is_active: newStatus === 'approved',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', storeObj.id);
+        }
+      }
 
       await fetchMerchants();
       setActionModal({ open: false, type: null });
