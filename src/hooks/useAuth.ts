@@ -31,18 +31,29 @@ export function useAuth(): UseAuthReturn {
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const [profileRes, notifRes] = await Promise.all([
-        supabase
+      let notifCount = 0;
+      let profileRes: any = { data: null };
+      try {
+        profileRes = await supabase
           .from('users')
           .select('*')
           .eq('id', userId)
-          .single(),
-        supabase
+          .single();
+      } catch {
+        profileRes = { data: null };
+      }
+
+      try {
+        const notifRes = await supabase
           .from('notifications')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
-          .eq('is_read', false),
-      ]);
+          .eq('is_read', false);
+        notifCount = notifRes.count || 0;
+      } catch {
+        // Table might not exist yet
+        notifCount = 0;
+      }
 
       const profileObj = profileRes.data ? (profileRes.data as UserProfile) : null;
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -87,7 +98,7 @@ export function useAuth(): UseAuthReturn {
 
       return {
         profile: finalProfile,
-        unreadNotifications: notifRes.count || 0,
+        unreadNotifications: notifCount,
       };
     } catch {
       return { profile: null, unreadNotifications: 0 };

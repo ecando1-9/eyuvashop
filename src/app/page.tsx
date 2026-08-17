@@ -16,7 +16,9 @@ import { ChevronRight, Store as StoreIcon, TrendingUp, Sparkles, Star } from 'lu
 interface HomePageData {
   banners: Banner[];
   categories: Category[];
-  products: any[];
+  products?: any[];
+  trending_products?: any[];
+  featured_products?: any[];
   stores: Store[];
 }
 
@@ -49,6 +51,7 @@ export default function HomePage() {
     return {
       id: rawProduct.id,
       title: rawProduct.title,
+      title_te: rawProduct.title_te,
       slug: rawProduct.slug,
       price: rawProduct.price,
       compare_at_price: rawProduct.compare_at_price,
@@ -74,15 +77,32 @@ export default function HomePage() {
       deleted_at: null,
       images: rawProduct.primary_image ? [{ id: '1', product_id: rawProduct.id, url: rawProduct.primary_image, is_primary: true, alt_text: rawProduct.title, display_order: 1, created_at: '' }] : [],
       store: {
-        name: rawProduct.store_name,
-        slug: rawProduct.store_slug
+        id: rawProduct.store_id || '',
+        name: rawProduct.store_name || 'Store',
+        slug: rawProduct.store_slug || 'store',
+        merchant_id: '',
+        description: null,
+        logo_url: null,
+        banner_url: null,
+        phone: null,
+        email: null,
+        city: null,
+        state: null,
+        pin_code: null,
+        status: 'draft',
+        is_active: true,
+        is_featured: false,
+        rating: 0,
+        followers_count: 0,
+        created_at: '',
+        updated_at: ''
       }
     };
   };
 
   const banners = data?.banners || [];
   const categories = data?.categories || [];
-  const products = (data?.products || []).map(transformProduct);
+  const products = (data?.trending_products || data?.products || []).map(transformProduct);
   const stores = data?.stores || [];
 
   return (

@@ -89,9 +89,10 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
     { label: 'Audit Trail & DB Logs', href: '/admin/audit-log', icon: FileText },
   ];
 
-  const adminName = profile?.full_name || user?.user_metadata?.full_name || 'System Administrator';
+  const [avatarError, setAvatarError] = useState(false);
+  const adminName = profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'System Administrator';
   const adminEmail = user?.email || 'eyuvashop@gmail.com';
-  const adminAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || null;
+  const adminAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.user_metadata?.avatarUrl || null;
 
   if (authLoading) {
     return (
@@ -108,8 +109,8 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* Top Enterprise Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs w-full">
+        <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -144,11 +145,16 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
 
             {/* Admin Profile Info */}
             <div className="flex items-center gap-2.5 pl-1">
-              <div className="w-8 h-8 rounded-full bg-[#FF6B00]/10 border border-[#FF6B00]/30 overflow-hidden flex items-center justify-center text-xs font-bold text-[#FF6B00]">
-                {adminAvatar ? (
-                  <img src={adminAvatar} alt={adminName} className="w-full h-full object-cover" />
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 text-white border border-slate-200 overflow-hidden flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
+                {adminAvatar && !avatarError ? (
+                  <img 
+                    src={adminAvatar} 
+                    alt={adminName} 
+                    className="w-full h-full object-cover" 
+                    onError={() => setAvatarError(true)}
+                  />
                 ) : (
-                  adminName.charAt(0).toUpperCase()
+                  <span>{adminName.charAt(0).toUpperCase()}</span>
                 )}
               </div>
               <div className="hidden md:block text-left">
@@ -168,11 +174,11 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
         </div>
       </header>
 
-      {/* Main Container with Sidebar + Content */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex gap-6">
-        {/* Desktop Sidebar */}
-        <aside className="w-64 shrink-0 hidden lg:block">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sticky top-22 space-y-6">
+      {/* Main Full-Screen Container with Sidebar + Content */}
+      <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 flex gap-6">
+        {/* Persistent Left Sidebar */}
+        <aside className="w-64 shrink-0 hidden md:block">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sticky top-20 space-y-6">
             <div className="px-2">
               <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
                 Administration Hub

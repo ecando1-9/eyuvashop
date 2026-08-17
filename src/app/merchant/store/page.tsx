@@ -172,6 +172,29 @@ export default function MerchantStorePage() {
     );
   };
 
+  const handleResubmit = async () => {
+    if (!merchantProfile?.id) return;
+    try {
+      setSaving(true);
+      const { error } = await supabase
+        .from('merchant_profiles')
+        .update({
+          verification_status: 'pending',
+          rejection_reason: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', merchantProfile.id);
+
+      if (error) throw error;
+      setMerchantProfile((prev: any) => ({ ...prev, verification_status: 'pending', rejection_reason: null }));
+      setMessage({ type: "success", text: "Store application successfully re-submitted for admin verification!" });
+    } catch (err: any) {
+      setMessage({ type: "error", text: err.message || "Failed to re-submit application." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (authLoading || loading) {
     return <div className="flex h-screen items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-[#FF6B00]" /></div>;
   }
@@ -179,6 +202,27 @@ export default function MerchantStorePage() {
   return (
     <MerchantLayout title="Storefront Profile & Branding" subtitle="Customize your store appearance, logo, banner, and business contact information">
       <div className="space-y-6">
+        {merchantProfile?.verification_status === 'rejected' && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start justify-between gap-4 shadow-sm">
+            <div className="space-y-1">
+              <h3 className="font-extrabold text-red-900 text-sm">Store Application Requires Changes</h3>
+              {merchantProfile.rejection_reason && (
+                <p className="text-xs text-red-800 font-bold">
+                  Admin Feedback: <span className="font-normal italic text-red-700">"{merchantProfile.rejection_reason}"</span>
+                </p>
+              )}
+              <p className="text-xs text-red-700">Make necessary corrections to your store profile below, save changes, and click Re-submit.</p>
+            </div>
+            <button
+              onClick={handleResubmit}
+              disabled={saving}
+              className="px-4 py-2 bg-[#FF6B00] hover:bg-[#e05e00] text-white rounded-xl font-bold text-xs shadow-xs transition-colors shrink-0"
+            >
+              Re-submit for Verification
+            </button>
+          </div>
+        )}
+
         <div className="flex justify-end mb-2">
           <button
             onClick={handleSave}

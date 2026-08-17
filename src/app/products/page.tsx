@@ -87,9 +87,9 @@ function ProductsContent() {
     let query = supabase
       .from('products')
       .select(
-        `id, title, slug, price, compare_at_price, rating, review_count, is_featured, is_new_arrival, is_best_seller, is_trending, created_at, stock_quantity,
+        `id, title, title_te, slug, price, compare_at_price, rating, review_count, is_featured, is_new_arrival, is_best_seller, is_trending, search_priority, created_at, stock_quantity,
         images:product_images(url, is_primary, display_order),
-        store:stores(name, slug),
+        store:stores(name, slug, priority),
         category:categories!inner(name, slug)
       `,
         { count: 'exact' }
@@ -99,7 +99,7 @@ function ProductsContent() {
       .is('deleted_at', null);
 
     if (searchQuery) {
-      query = query.ilike('title', `%${searchQuery}%`);
+      query = query.or(`title.ilike.%${searchQuery}%,title_te.ilike.%${searchQuery}%`);
     }
 
     if (categorySlug) {
@@ -132,8 +132,11 @@ function ProductsContent() {
         query = query.order('rating', { ascending: false });
         break;
       default:
-        // Relevance (no specific sort, or could order by is_featured)
-        query = query.order('is_featured', { ascending: false }).order('created_at', { ascending: false });
+        // Relevance: Prioritized by admin search_priority first, then featured, then newest
+        query = query
+          .order('search_priority', { ascending: false, nullsFirst: false })
+          .order('is_featured', { ascending: false })
+          .order('created_at', { ascending: false });
         break;
     }
 

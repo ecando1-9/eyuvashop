@@ -13,7 +13,7 @@ import { Footer } from '@/components/common/Footer';
 import { BottomNav } from '@/components/common/BottomNav';
 import { ProductCard } from '@/components/customer/ProductCard';
 import { formatCurrency } from '@/lib/utils';
-import { Star, Minus, Plus, ShoppingCart, Heart, Store, ShieldCheck, Truck, RotateCcw } from 'lucide-react';
+import { Star, Minus, Plus, ShoppingCart, Heart, Store, ShieldCheck, Truck, RotateCcw, MapPin, Phone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 import { PriceHistoryModal } from '@/components/merchant/PriceHistoryModal';
@@ -301,21 +301,43 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
                 </div>
               </div>
 
-              {/* Store Card */}
+              {/* Store Brand & Trust Card */}
               {product.store && (
-                <Link href={`/store/${product.store.slug}`} className="mt-auto bg-gray-50 p-4 rounded-xl flex items-center gap-4 hover:bg-gray-100 transition">
-                  <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center border shadow-sm text-[#0B1E3D]">
-                    {product.store.logo_url ? (
-                      <img src={product.store.logo_url} alt={product.store.name} className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <Store className="h-6 w-6" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Sold By</div>
-                    <div className="font-bold text-[#0B1E3D]">{product.store.name}</div>
-                  </div>
-                </Link>
+                <div className="mt-auto bg-gradient-to-br from-slate-50 to-orange-50/40 p-4 rounded-2xl border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <Link href={`/store/${product.store.slug}`} className="flex items-center gap-3.5 group">
+                    <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center border border-slate-200 shadow-xs text-[#0B1E3D] overflow-hidden shrink-0 group-hover:border-[#FF6B00] transition-colors">
+                      {product.store.logo_url ? (
+                        <img src={product.store.logo_url} alt={product.store.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Store className="h-6 w-6 text-[#FF6B00]" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Sold By</span>
+                        <span className="inline-flex items-center text-[10px] font-bold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.2 rounded-full">
+                          <ShieldCheck className="w-3 h-3 mr-0.5" /> Verified Seller
+                        </span>
+                      </div>
+                      <div className="font-extrabold text-slate-900 group-hover:text-[#FF6B00] transition-colors">{product.store.name}</div>
+                      {(product.store.city || product.store.state) && (
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3 text-slate-400" />
+                          <span>{[product.store.city, product.store.state].filter(Boolean).join(", ")}</span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+
+                  {product.store.phone && (
+                    <div className="text-right text-xs shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">Seller Helpline</span>
+                      <a href={`tel:${product.store.phone}`} className="font-mono font-bold text-[#FF6B00] hover:underline flex items-center gap-1">
+                        <Phone className="w-3 h-3" /> {product.store.phone}
+                      </a>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>

@@ -26,7 +26,12 @@ export interface MerchantProfile {
   business_name: string;
   business_email: string;
   business_phone: string;
+  business_address?: string | null;
   verification_status: MerchantVerificationStatus;
+  can_publish?: boolean;
+  first_product_published_at?: string | null;
+  last_published_product_id?: string | null;
+  priority?: number;
   rejection_reason: string | null;
   approved_at: string | null;
   created_at: string;
@@ -49,6 +54,7 @@ export interface Store {
   status: StoreStatus;
   is_active: boolean;
   is_featured: boolean;
+  priority?: number;
   rating: number;
   followers_count: number;
   created_at: string;
@@ -95,6 +101,9 @@ export interface Product {
   is_trending: boolean;
   is_best_seller: boolean;
   is_new_arrival: boolean;
+  search_priority?: number;
+  trending_priority?: number;
+  featured_priority?: number;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
