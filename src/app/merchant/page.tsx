@@ -48,7 +48,7 @@ export default function MerchantDashboard() {
         .from('merchant_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
         
       if (mProfile) {
         setMerchantProfile(mProfile);
@@ -59,12 +59,16 @@ export default function MerchantDashboard() {
           address: mProfile.business_address || ''
         });
         
-        const { data: statsData } = await supabase.rpc('get_merchant_dashboard_stats', { p_merchant_id: mProfile.id });
-        if (statsData) {
-          setStats(statsData);
+        try {
+          const { data: statsData } = await supabase.rpc('get_merchant_dashboard_stats', { p_merchant_id: mProfile.id });
+          if (statsData) {
+            setStats(statsData);
+          }
+        } catch {
+          // RPC might not exist yet
         }
         
-        const { data: stores } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).single();
+        const { data: stores } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).maybeSingle();
         if (stores) {
           const { data: recentOrders } = await supabase.from('order_items')
             .select('id, quantity, total_price, merchant_status, created_at, product:products(title), order:orders(order_number)')

@@ -33,27 +33,18 @@ export function useAuth(): UseAuthReturn {
     try {
       let notifCount = 0;
       let profileRes: any = { data: null };
+
       try {
         profileRes = await supabase
           .from('users')
           .select('*')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
       } catch {
         profileRes = { data: null };
       }
 
-      try {
-        const notifRes = await supabase
-          .from('notifications')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('is_read', false);
-        notifCount = notifRes.count || 0;
-      } catch {
-        // Table might not exist yet
-        notifCount = 0;
-      }
+      notifCount = 0;
 
       const profileObj = profileRes.data ? (profileRes.data as UserProfile) : null;
       const { data: { user: currentUser } } = await supabase.auth.getUser();

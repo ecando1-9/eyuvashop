@@ -44,7 +44,7 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
           .from('merchant_profiles')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (mProfile) {
           setMerchantProfile(mProfile);
@@ -52,7 +52,7 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
             .from('stores')
             .select('*')
             .eq('merchant_id', mProfile.id)
-            .single();
+            .maybeSingle();
           if (storeData) setStore(storeData);
         }
       } catch (err) {
