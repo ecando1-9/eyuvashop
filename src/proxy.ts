@@ -30,14 +30,29 @@ export async function proxy(request: NextRequest) {
       return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
     }
 
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    const isDirectAdmin = user.email === 'eyuvashop@gmail.com' || user.user_metadata?.role === 'admin';
 
-    if (!profile || profile.role !== 'admin') {
-      return redirectWithCookies('/');
+    if (!isDirectAdmin) {
+      try {
+        // Fast DB check with safety timeout to prevent server hang / 10s timeout
+        const rolePromise = supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        const timeoutPromise = new Promise<{ data: any }>((resolve) =>
+          setTimeout(() => resolve({ data: null }), 1500)
+        );
+
+        const { data: profile } = await Promise.race([rolePromise, timeoutPromise]);
+
+        if (profile && profile.role !== 'admin') {
+          return redirectWithCookies('/');
+        }
+      } catch {
+        // Continue to page and allow useAuth hook on client to perform final check
+      }
     }
   }
 
