@@ -12,7 +12,13 @@ export const createClient = (): SupabaseClient => {
   }
 
   if (!client) {
-    client = createBrowserClient(supabaseUrl, supabaseAnonKey);
+    client = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => {
+          return await fn();
+        },
+      },
+    });
   }
 
   return client;
