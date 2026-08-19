@@ -20,10 +20,10 @@ export default function AdminUsersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
+    if (!authLoading && user && profile && !isAdmin) {
       router.push("/");
     }
   }, [user, profile, authLoading, isAdmin, router]);
@@ -72,6 +72,32 @@ export default function AdminUsersPage() {
       }
     } catch (err: any) {
       alert("Error updating user status: " + err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateRole = async (targetUser: any, newRole: string) => {
+    if (!confirm(`Are you sure you want to change ${targetUser.full_name || targetUser.email}'s role to ${newRole.toUpperCase()}?`)) {
+      return;
+    }
+
+    try {
+      setActionLoading(targetUser.id);
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .eq('id', targetUser.id);
+
+      if (error) throw error;
+
+      await fetchUsers();
+      if (selectedUser?.id === targetUser.id) {
+        setSelectedUser({ ...selectedUser, role: newRole });
+      }
+      alert(`User role updated to ${newRole.toUpperCase()} successfully!`);
+    } catch (err: any) {
+      alert("Error updating user role: " + err.message);
     } finally {
       setActionLoading(null);
     }
@@ -299,6 +325,44 @@ export default function AdminUsersPage() {
                   <Calendar className="w-3.5 h-3.5 text-gray-400" />
                   {new Date(selectedUser.created_at).toLocaleDateString()}
                 </span>
+              </div>
+            </div>
+
+            {/* Change User Role Section */}
+            <div className="bg-purple-50/70 p-4 rounded-xl border border-purple-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-purple-900">Platform Role Privileges</h4>
+                  <p className="text-xs text-purple-700 mt-0.5">Change this account's system permissions</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedUser.role !== 'admin' ? (
+                    <button
+                      onClick={() => handleUpdateRole(selectedUser, 'admin')}
+                      disabled={actionLoading === selectedUser.id}
+                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-lg shadow-sm transition disabled:opacity-50"
+                    >
+                      👑 Promote to Admin
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleUpdateRole(selectedUser, 'customer')}
+                      disabled={actionLoading === selectedUser.id}
+                      className="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-bold text-xs rounded-lg shadow-sm transition disabled:opacity-50"
+                    >
+                      Demote to User
+                    </button>
+                  )}
+                  {selectedUser.role !== 'merchant' && (
+                    <button
+                      onClick={() => handleUpdateRole(selectedUser, 'merchant')}
+                      disabled={actionLoading === selectedUser.id}
+                      className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs rounded-lg shadow-sm transition disabled:opacity-50"
+                    >
+                      Set as Merchant
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

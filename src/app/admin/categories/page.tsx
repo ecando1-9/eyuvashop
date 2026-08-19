@@ -17,10 +17,10 @@ export default function AdminCategoriesPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: '', slug: '', description: '', parent_id: '', is_featured: false, display_order: 0 });
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
+    if (!authLoading && user && profile && !isAdmin) {
       router.push("/");
     }
   }, [user, profile, authLoading, isAdmin, router]);

@@ -34,13 +34,17 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
     pendingProducts: 0
   });
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
-      router.push('/');
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login?redirect=' + encodeURIComponent(pathname));
+      } else if (profile && !isAdmin) {
+        router.push('/');
+      }
     }
-  }, [user, profile, authLoading, isAdmin, router]);
+  }, [user, profile, authLoading, isAdmin, router, pathname]);
 
   useEffect(() => {
     async function loadPendingCounts() {

@@ -120,23 +120,15 @@ export function useAuth(): UseAuthReturn {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user && mounted) {
-          // 1. Immediately reveal user & stop loading state for 0ms visual delay
-          setState((prev) => ({
-            ...prev,
-            user: session.user,
-            loading: false,
-          }));
-
-          // 2. Fetch profile & notifications asynchronously in background
-          fetchProfile(session.user.id).then(({ profile, unreadNotifications }) => {
-            if (mounted) {
-              setState((prev) => ({
-                ...prev,
-                profile,
-                unreadNotifications,
-              }));
-            }
-          });
+          const { profile, unreadNotifications } = await fetchProfile(session.user.id);
+          if (mounted) {
+            setState({
+              user: session.user,
+              profile,
+              unreadNotifications,
+              loading: false,
+            });
+          }
         } else if (mounted) {
           setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
         }
@@ -150,25 +142,19 @@ export function useAuth(): UseAuthReturn {
     initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (!mounted) return;
 
         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-          setState((prev) => ({
-            ...prev,
-            user: session.user,
-            loading: false,
-          }));
-
-          fetchProfile(session.user.id).then(({ profile, unreadNotifications }) => {
-            if (mounted) {
-              setState((prev) => ({
-                ...prev,
-                profile,
-                unreadNotifications,
-              }));
-            }
-          });
+          const { profile, unreadNotifications } = await fetchProfile(session.user.id);
+          if (mounted) {
+            setState({
+              user: session.user,
+              profile,
+              unreadNotifications,
+              loading: false,
+            });
+          }
         } else if (event === 'SIGNED_OUT') {
           if (mounted) {
             setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });

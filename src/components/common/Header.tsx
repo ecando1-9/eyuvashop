@@ -338,7 +338,7 @@ export function Header() {
                       </Link>
 
                       {/* Admin Control Panel Option */}
-                      {(profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com') && (
+                      {(profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin') && (
                         <Link
                           href="/admin"
                           onClick={() => setUserMenuOpen(false)}
@@ -586,7 +586,7 @@ export function Header() {
             </Link>
 
             {/* Admin Control Panel Banner (Only for Admins) */}
-            {mounted && user && (profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com') && (
+            {mounted && user && (profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin') && (
               <>
                 <div className="border-t border-dashed border-gray-200 my-2" />
                 <Link

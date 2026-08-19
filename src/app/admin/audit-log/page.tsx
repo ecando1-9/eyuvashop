@@ -15,10 +15,10 @@ export default function AdminAuditLogPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com';
+  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
-    if (!authLoading && (!user || !isAdmin)) {
+    if (!authLoading && user && profile && !isAdmin) {
       router.push("/");
     }
   }, [user, profile, authLoading, isAdmin, router]);
