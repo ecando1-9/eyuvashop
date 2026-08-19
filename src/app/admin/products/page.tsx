@@ -35,7 +35,7 @@ export default function AdminProductsPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const tabs = ["All", "Pending Approval", "Published", "Trending & Featured", "Rejected", "Draft", "Archived"];
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading && user && profile && !isAdmin) {

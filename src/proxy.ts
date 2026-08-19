@@ -30,11 +30,11 @@ export async function proxy(request: NextRequest) {
       return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
     }
 
-    const isDirectAdmin = user.email === 'eyuvashop@gmail.com' || user.user_metadata?.role === 'admin';
+    const isDirectAdmin = user.user_metadata?.role === 'admin';
 
     if (!isDirectAdmin) {
       try {
-        // Fast DB check with safety timeout to prevent server hang / 10s timeout
+        // Dynamic DB role check with 1.5s safety timeout
         const rolePromise = supabase
           .from('users')
           .select('role')

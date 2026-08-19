@@ -39,7 +39,7 @@ export default function AdminMerchantsPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const tabs = ["All", "Pending", "Active", "Suspended", "Rejected"];
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading && user && profile && !isAdmin) {

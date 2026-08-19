@@ -29,7 +29,7 @@ USING (
     user_id = auth.uid()
     OR EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = auth.uid() AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = auth.uid() AND role = 'admin'
     )
 );
 
@@ -42,14 +42,14 @@ USING (
     user_id = auth.uid()
     OR EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = auth.uid() AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = auth.uid() AND role = 'admin'
     )
 )
 WITH CHECK (
     user_id = auth.uid()
     OR EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = auth.uid() AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = auth.uid() AND role = 'admin'
     )
 );
 
@@ -66,7 +66,7 @@ WITH CHECK (
     )
     OR EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = auth.uid() AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = auth.uid() AND role = 'admin'
     )
 );
 
@@ -78,6 +78,6 @@ TO authenticated
 USING (
     EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = auth.uid() AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = auth.uid() AND role = 'admin'
     )
 );

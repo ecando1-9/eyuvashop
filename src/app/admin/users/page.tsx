@@ -20,7 +20,7 @@ export default function AdminUsersPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading && user && profile && !isAdmin) {

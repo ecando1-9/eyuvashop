@@ -21,7 +21,7 @@ export default function AdminOrdersPage() {
 
   const tabs = ["All", "Pending", "Confirmed", "Shipped", "Delivered", "Cancelled", "Refunded"];
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading && user && profile && !isAdmin) {

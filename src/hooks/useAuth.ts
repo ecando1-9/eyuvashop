@@ -70,7 +70,7 @@ export function useAuth(): UseAuthReturn {
       const finalProfile: UserProfile = profileObj
         ? {
             ...profileObj,
-            role: (profileObj.role === 'admin' || currentUser?.email === 'eyuvashop@gmail.com' || currentUser?.user_metadata?.role === 'admin') ? 'admin' : (profileObj.role || 'customer'),
+            role: (profileObj.role === 'admin' || currentUser?.user_metadata?.role === 'admin') ? 'admin' : (profileObj.role || 'customer'),
             full_name: profileObj.full_name || metaName || currentUser?.email?.split('@')[0] || 'User',
             avatar_url: profileObj.avatar_url || metaAvatar,
             deleted_at: null,
@@ -82,7 +82,7 @@ export function useAuth(): UseAuthReturn {
             phone: undefined,
             full_name: metaName || currentUser?.email?.split('@')[0] || 'User',
             avatar_url: metaAvatar,
-            role: (currentUser?.email === 'eyuvashop@gmail.com' || currentUser?.user_metadata?.role === 'admin') ? 'admin' : 'customer',
+            role: currentUser?.user_metadata?.role === 'admin' ? 'admin' : 'customer',
             is_active: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

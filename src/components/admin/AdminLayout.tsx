@@ -34,7 +34,7 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
     pendingProducts: 0
   });
 
-  const isAdmin = profile?.role === 'admin' || user?.email === 'eyuvashop@gmail.com' || user?.user_metadata?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading) {
@@ -95,7 +95,7 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
 
   const [avatarError, setAvatarError] = useState(false);
   const adminName = profile?.full_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'System Administrator';
-  const adminEmail = user?.email || 'eyuvashop@gmail.com';
+  const adminEmail = user?.email || 'admin@eyuvashop.com';
   const adminAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture || user?.user_metadata?.avatarUrl || null;
 
   if (authLoading) {

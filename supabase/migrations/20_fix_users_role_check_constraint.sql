@@ -28,7 +28,7 @@ BEGIN
     -- Check admin authorization
     IF NOT EXISTS (
         SELECT 1 FROM public.users 
-        WHERE id = p_admin_id AND (role = 'admin' OR email = 'eyuvashop@gmail.com')
+        WHERE id = p_admin_id AND role = 'admin'
     ) THEN
         RAISE EXCEPTION 'Access denied. Admin role required.';
     END IF;
