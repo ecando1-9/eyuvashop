@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
@@ -134,16 +134,30 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
   const verificationStatus = merchantProfile?.verification_status || 'pending';
   const userAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || null;
 
+  const isRouteActive = (href: string) => {
+    if (href === '/merchant') {
+      return pathname === '/merchant';
+    }
+    if (href === '/merchant/products/new') {
+      return pathname === '/merchant/products/new';
+    }
+    if (href === '/merchant/products') {
+      return pathname === '/merchant/products' || (pathname.startsWith('/merchant/products/') && pathname !== '/merchant/products/new');
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   const navItems = [
     { label: 'Dashboard', href: '/merchant', icon: LayoutDashboard },
     { label: 'Products', href: '/merchant/products', icon: Package },
     { label: 'Add Product', href: '/merchant/products/new', icon: Plus },
+    { label: 'Categories', href: '/merchant/categories', icon: Grid },
     { label: 'Orders', href: '/merchant/orders', icon: ShoppingBag },
-    { label: 'Categories', href: '/categories', icon: Grid },
     { label: 'Inventory', href: '/merchant/inventory', icon: Layers },
     { label: 'Store Profile', href: '/merchant/store', icon: Store },
     { label: 'Account Settings', href: '/account/settings', icon: Settings },
   ];
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -307,7 +321,7 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
               <p className="px-3 text-[11px] font-extrabold uppercase tracking-wider text-gray-400 mb-2">Merchant Menu</p>
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href || (item.href !== '/merchant' && pathname.startsWith(item.href));
+                const isActive = isRouteActive(item.href);
                 return (
                   <Link
                     key={item.label}
@@ -356,7 +370,7 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
                 <nav className="space-y-1">
                   {navItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href || (item.href !== '/merchant' && pathname.startsWith(item.href));
+                    const isActive = isRouteActive(item.href);
                     return (
                       <Link
                         key={item.label}
@@ -375,6 +389,7 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
                   })}
                 </nav>
               </div>
+
 
               <div className="border-t border-gray-100 pt-4">
                 <button

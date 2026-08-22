@@ -68,12 +68,16 @@ export interface Category {
   slug: string;
   description: string | null;
   image_url: string | null;
+  type?: 'PLATFORM' | 'MERCHANT';
+  merchant_id?: string | null;
+  status?: 'active' | 'inactive';
   approval_status: ApprovalStatus;
   is_featured: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface Product {
   id: string;

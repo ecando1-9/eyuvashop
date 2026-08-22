@@ -9,7 +9,7 @@ import { MerchantLayout } from "@/components/merchant/MerchantLayout";
 import { PriceHistoryModal } from "@/components/merchant/PriceHistoryModal";
 import { 
   Save, X, Image as ImageIcon, History, Loader2,
-  AlertCircle, CheckCircle2, ArrowLeft 
+  AlertCircle, CheckCircle2, ArrowLeft, Plus
 } from "lucide-react";
 import Link from "next/link";
 
@@ -58,6 +58,12 @@ export default function EditProductPage() {
     if (!authLoading && !user) router.push("/login");
   }, [user, authLoading, router]);
 
+  // Quick Category Creation Modal State
+  const [showQuickCategoryModal, setShowQuickCategoryModal] = useState(false);
+  const [quickCategoryForm, setQuickCategoryForm] = useState({ name: "", description: "" });
+  const [quickCategoryLoading, setQuickCategoryLoading] = useState(false);
+  const [quickCategoryError, setQuickCategoryError] = useState("");
+
   // Load categories independently on mount
   useEffect(() => {
     async function loadCategories() {
@@ -66,7 +72,7 @@ export default function EditProductPage() {
         setCategoriesError("");
         const { data: catData, error } = await supabase
           .from('categories')
-          .select('id, name')
+          .select('id, name, slug, type, merchant_id, status, approval_status')
           .eq('approval_status', 'approved')
           .order('name');
         
@@ -155,6 +161,55 @@ export default function EditProductPage() {
 
     loadProductData();
   }, [user?.id, productId, supabase]);
+  const handleQuickCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const nameTrimmed = quickCategoryForm.name.trim();
+    if (!nameTrimmed) {
+      setQuickCategoryError("Category name is required.");
+      return;
+    }
+
+    if (!mProfile?.id) {
+      setQuickCategoryError("Merchant profile is not ready. Please wait a moment.");
+      return;
+    }
+
+    try {
+      setQuickCategoryLoading(true);
+      setQuickCategoryError("");
+
+      const slug = nameTrimmed
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '') + '-m-' + mProfile.id.slice(0, 6);
+
+      const { data: newCat, error } = await supabase
+        .from('categories')
+        .insert([{
+          name: nameTrimmed,
+          slug,
+          description: quickCategoryForm.description.trim() || null,
+          type: 'MERCHANT',
+          merchant_id: mProfile.id,
+          status: 'active',
+          approval_status: 'approved'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setCategories(prev => [newCat, ...prev]);
+      setFormData(prev => ({ ...prev, category_id: newCat.id }));
+      setShowQuickCategoryModal(false);
+      setQuickCategoryForm({ name: '', description: '' });
+    } catch (err: any) {
+      console.error("Quick create category error:", err);
+      setQuickCategoryError(err.message || "Failed to create category.");
+    } finally {
+      setQuickCategoryLoading(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -364,7 +419,19 @@ export default function EditProductPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1">Category *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-gray-700">Category *</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickCategoryError('');
+                    setShowQuickCategoryModal(true);
+                  }}
+                  className="text-[11px] font-bold text-[#FF6B00] hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Create Category
+                </button>
+              </div>
               {categoriesError ? (
                 <div className="w-full p-2.5 border border-red-300 rounded-lg text-xs bg-red-50 text-red-700 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -376,14 +443,35 @@ export default function EditProductPage() {
                   value={formData.category_id}
                   onChange={handleChange}
                   disabled={categoriesLoading}
-                  className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none bg-white disabled:opacity-60"
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none bg-white disabled:opacity-60 disabled:cursor-wait font-medium"
                 >
                   <option value="">
                     {categoriesLoading ? 'Loading categories...' : `Select Category (${categories.length} available)`}
                   </option>
-                  {categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  
+                  {/* My Custom Categories */}
+                  {categories.filter(c => c.type === 'MERCHANT' || c.merchant_id).length > 0 && (
+                    <optgroup label="── My Custom Categories ──">
+                      {categories
+                        .filter(c => c.type === 'MERCHANT' || c.merchant_id)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>
+                            ★ {c.name}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+
+                  {/* Platform Default Categories */}
+                  <optgroup label="── Platform Categories ──">
+                    {categories
+                      .filter(c => c.type !== 'MERCHANT' && !c.merchant_id)
+                      .map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                  </optgroup>
                 </select>
               )}
             </div>
@@ -619,6 +707,79 @@ export default function EditProductPage() {
             </button>
           </div>
         </div>
+
+        {/* QUICK CATEGORY CREATION MODAL */}
+        {showQuickCategoryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 relative">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                <h3 className="font-extrabold text-gray-900 text-sm">Create New Category</h3>
+                <button
+                  onClick={() => setShowQuickCategoryModal(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {quickCategoryError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-lg flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{quickCategoryError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleQuickCreateCategory} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Category Name * <span className="text-gray-400 font-normal">(max 50 chars)</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="e.g. Sarees, Sweets"
+                    value={quickCategoryForm.name}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, name: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Description <span className="text-gray-400 font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    maxLength={200}
+                    placeholder="Short description..."
+                    value={quickCategoryForm.description}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, description: e.target.value })}
+                    className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCategoryModal(false)}
+                    className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={quickCategoryLoading}
+                    className="px-4 py-2 bg-[#FF6B00] hover:bg-[#e05e00] text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {quickCategoryLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    <span>{quickCategoryLoading ? "Creating..." : "Create & Select"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         <PriceHistoryModal
           productId={productId}

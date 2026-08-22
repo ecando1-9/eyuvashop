@@ -9,6 +9,7 @@ interface EmptyStateProps {
   icon?: 'product' | 'store' | 'inbox' | 'sparkles';
   actionLabel?: string;
   actionHref?: string;
+  onAction?: () => void;
 }
 
 export function EmptyState({
@@ -17,6 +18,7 @@ export function EmptyState({
   icon = 'product',
   actionLabel,
   actionHref,
+  onAction,
 }: EmptyStateProps) {
   const renderIcon = () => {
     switch (icon) {
@@ -41,14 +43,21 @@ export function EmptyState({
         <h3 className="font-extrabold text-gray-900 text-base md:text-lg">{title}</h3>
         <p className="text-xs md:text-sm text-gray-500 leading-relaxed">{description}</p>
       </div>
-      {actionLabel && actionHref && (
+      {actionLabel && (actionHref ? (
         <Link
           href={actionHref}
           className="mt-2 inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white text-xs font-bold px-5 py-2.5 rounded-full transition-all shadow-md active:scale-95"
         >
           <Plus className="w-4 h-4" /> {actionLabel}
         </Link>
-      )}
+      ) : onAction ? (
+        <button
+          onClick={onAction}
+          className="mt-2 inline-flex items-center gap-2 bg-[#FF6B00] hover:bg-orange-600 text-white text-xs font-bold px-5 py-2.5 rounded-full transition-all shadow-md active:scale-95"
+        >
+          <Plus className="w-4 h-4" /> {actionLabel}
+        </button>
+      ) : null)}
     </div>
   );
 }
