@@ -287,18 +287,27 @@ export default function EditProductPage() {
         }
       }
 
+      const selectedCat = categories.find(c => c.id === formData.category_id);
+      const catName = selectedCat ? selectedCat.name : 'General';
+
       // 1. Update product
       const { error: prodUpdateErr } = await supabase
         .from('products')
         .update({
           category_id: formData.category_id,
+          category: catName, // Schema requires category string
           title: formData.title.trim(),
+          name: formData.title.trim(), // Some schemas use name instead of title
           title_te: formData.title_te.trim() || null,
           description: formData.description || formData.short_description,
           brand: formData.brand.trim() || null,
           sku: formData.sku.trim(),
           price: parseFloat(formData.price),
+          selling_price: parseFloat(formData.price), // Schema requires selling_price
+          mrp: formData.compare_at_price ? parseFloat(formData.compare_at_price) : parseFloat(formData.price), // Schema requires mrp
           compare_at_price: formData.compare_at_price ? parseFloat(formData.compare_at_price) : null,
+          cost_price: formData.price ? parseFloat(formData.price) * 0.8 : 0, // Schema requires cost_price
+          image_url: images.length > 0 ? images[0].url : 'https://placehold.co/600x600/f8fafc/94a3b8?text=No+Image', // Schema requires image_url
           stock_quantity: parseInt(formData.stock_quantity) || 0,
           low_stock_threshold: parseInt(formData.low_stock_threshold) || 5,
           weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg) : 0.500,

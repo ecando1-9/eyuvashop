@@ -357,19 +357,28 @@ export default function NewProductPage() {
       const finalStatus = submitForApproval && canPublishDirectly ? 'published' : 'draft';
       const finalApproval = submitForApproval && canPublishDirectly ? 'approved' : submitForApproval ? 'pending' : 'draft';
 
+      const selectedCat = categories.find(c => c.id === formData.category_id);
+      const catName = selectedCat ? selectedCat.name : 'General';
+
       const { data: productData, error: productError } = await supabase
         .from('products')
         .insert([{
           store_id: store.id,
           category_id: formData.category_id,
+          category: catName, // Schema requires category string
           title: formData.title,
+          name: formData.title, // Some schemas use name instead of title
           title_te: formData.title_te || null,
           slug: productSlug,
           description: formData.description || formData.short_description,
           brand: formData.brand || brandingForm.store_name || store.name,
           sku: formData.sku || `SKU-${Date.now()}`,
           price: parseFloat(formData.price),
+          selling_price: parseFloat(formData.price), // Schema requires selling_price
+          mrp: formData.compare_at_price ? parseFloat(formData.compare_at_price) : parseFloat(formData.price), // Schema requires mrp
           compare_at_price: formData.compare_at_price ? parseFloat(formData.compare_at_price) : null,
+          cost_price: formData.price ? parseFloat(formData.price) * 0.8 : 0, // Schema requires cost_price
+          image_url: images.length > 0 ? images[0].url : 'https://placehold.co/600x600/f8fafc/94a3b8?text=No+Image', // Schema requires image_url
           stock_quantity: parseInt(formData.stock_quantity),
           low_stock_threshold: parseInt(formData.low_stock_threshold),
           weight_kg: formData.weight_kg ? parseFloat(formData.weight_kg) : 0.500,
@@ -395,11 +404,8 @@ export default function NewProductPage() {
       }
 
       if (productData) {
-        await supabase.from('inventory').insert([{
-          product_id: productData.id,
-          quantity: parseInt(formData.stock_quantity),
-          low_stock_threshold: parseInt(formData.low_stock_threshold)
-        }]);
+        // Inventory is automatically created by a database trigger (trigger_auto_create_inventory)
+        // No need to manually insert here.
 
         // If published, update merchant profile publishing tracking
         if (finalStatus === 'published' && mProfile?.id) {
