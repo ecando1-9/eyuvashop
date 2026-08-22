@@ -1,22 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { notFound } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
+import { notFound, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Star, MapPin, Package, Store as StoreIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { ProductCard } from '@/components/customer/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 
-export default function StorePage({ params }: { params: { slug: string } }) {
-  const supabase = createClient();
+export default function StorePage() {
+  const params = useParams();
+  const slug = params?.slug as string;
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
+  
   const [store, setStore] = useState<any>(null);
   const [products, setProducts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!slug) return;
     fetchStoreData();
-  }, [params.slug]);
+  }, [slug]);
 
   const fetchStoreData = async () => {
     setIsLoading(true);
@@ -25,9 +30,10 @@ export default function StorePage({ params }: { params: { slug: string } }) {
       const { data: storeData, error: storeError } = await supabase
         .from('stores')
         .select('*, merchant:merchant_profiles(business_name, business_email)')
-        .eq('slug', params.slug)
+        .eq('slug', slug)
         .eq('is_active', true)
         .single();
+
 
       if (storeError || !storeData) {
         setStore(null);

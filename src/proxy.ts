@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from 'next/server';
+﻿import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/middleware';
 
 export async function proxy(request: NextRequest) {
@@ -56,7 +56,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Protect merchant routes
+  // Protect merchant routes — unauthenticated users redirected to /login
   if (pathname.startsWith('/merchant') && (!user || isDeletedUser)) {
     return redirectWithCookies('/login?redirect=' + encodeURIComponent(pathname));
   }

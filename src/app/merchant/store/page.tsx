@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +11,8 @@ import { Save, AlertCircle, CheckCircle2, Store, Image as ImageIcon, Phone, Load
 export default function MerchantStorePage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,7 +49,7 @@ export default function MerchantStorePage() {
         .from("merchant_profiles")
         .select("*")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
         
       if (mProfile) {
         setMerchantProfile(mProfile);
@@ -57,7 +58,7 @@ export default function MerchantStorePage() {
           .from("stores")
           .select("*")
           .eq("merchant_id", mProfile.id)
-          .single();
+          .maybeSingle();
           
         if (storeData) {
           setStore(storeData);
@@ -83,8 +84,9 @@ export default function MerchantStorePage() {
   };
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user?.id) loadData();
+  }, [user?.id]);
+
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

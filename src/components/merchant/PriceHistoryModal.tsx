@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 import { X, TrendingUp, TrendingDown, Clock, User, History, ArrowRight } from 'lucide-react';
@@ -15,10 +15,15 @@ interface PriceHistoryModalProps {
 export function PriceHistoryModal({ productId, productTitle, isOpen, onClose }: PriceHistoryModalProps) {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   useEffect(() => {
-    if (!isOpen || !productId) return;
+    if (!isOpen || !productId || productId === 'new') {
+      setLoading(false);
+      setHistory([]);
+      return;
+    }
 
     async function fetchPriceHistory() {
       setLoading(true);
@@ -44,6 +49,7 @@ export function PriceHistoryModal({ productId, productTitle, isOpen, onClose }: 
 
     fetchPriceHistory();
   }, [productId, isOpen, supabase]);
+
 
   if (!isOpen) return null;
 

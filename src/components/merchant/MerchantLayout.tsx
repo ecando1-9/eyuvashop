@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -24,7 +24,11 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, signOut, loading: authLoading } = useAuth();
-  const supabase = createClient();
+
+  // Stable supabase client reference — does not change between renders,
+  // preventing it from being an unstable dependency in useEffect
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   const [merchantProfile, setMerchantProfile] = useState<any | null>(null);
   const [store, setStore] = useState<any | null>(null);
@@ -35,34 +39,72 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
   const [resubmitting, setResubmitting] = useState(false);
   const [resubmitSuccess, setResubmitSuccess] = useState(false);
 
-  useEffect(() => {
-    async function loadMerchantInfo() {
-      if (!user) return;
-      try {
-        setLoadingMerchant(true);
-        const { data: mProfile } = await supabase
-          .from('merchant_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle();
+  // Fetch merchant profile + store using selective column selects for performance
+  const loadMerchantInfo = useCallback(async (userId: string) => {
+    try {
+      const { data: mProfile } = await supabase
+        .from('merchant_profiles')
+        .select('id, business_name, business_phone, business_address, verification_status, can_publish, rejection_reason')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-        if (mProfile) {
-          setMerchantProfile(mProfile);
-          const { data: storeData } = await supabase
-            .from('stores')
-            .select('*')
-            .eq('merchant_id', mProfile.id)
-            .maybeSingle();
-          if (storeData) setStore(storeData);
-        }
-      } catch (err) {
-        console.error("Error loading merchant layout profile:", err);
-      } finally {
-        setLoadingMerchant(false);
+      if (mProfile) {
+        setMerchantProfile(mProfile);
+        const { data: storeData } = await supabase
+          .from('stores')
+          .select('id, name, city, phone, email')
+          .eq('merchant_id', mProfile.id)
+          .maybeSingle();
+        if (storeData) setStore(storeData);
       }
+    } catch (err) {
+      console.error("Error loading merchant layout profile:", err);
+    } finally {
+      setLoadingMerchant(false);
     }
-    loadMerchantInfo();
-  }, [user, supabase]);
+  }, [supabase]);
+
+  // Initial load — only fires when user.id changes (not on every render)
+  useEffect(() => {
+    if (!user?.id) {
+      if (!authLoading) setLoadingMerchant(false);
+      return;
+    }
+    setLoadingMerchant(true);
+    loadMerchantInfo(user.id);
+  }, [user?.id, authLoading, loadMerchantInfo]);
+
+  // Approval status polling — re-fetch merchant profile every 30 seconds so admin
+  // approval/rejection reflects on the merchant side without requiring a full page reload
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const interval = setInterval(() => {
+      supabase
+        .from('merchant_profiles')
+        .select('id, business_name, business_phone, business_address, verification_status, can_publish, rejection_reason')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setMerchantProfile((prev: any) => {
+              // Only trigger re-render if approval-relevant fields changed
+              if (
+                !prev ||
+                prev.verification_status !== data.verification_status ||
+                prev.can_publish !== data.can_publish ||
+                prev.rejection_reason !== data.rejection_reason
+              ) {
+                return data;
+              }
+              return prev;
+            });
+          }
+        });
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user?.id, supabase]);
 
   const handleGlobalResubmit = async () => {
     if (!merchantProfile?.id) return;
@@ -373,10 +415,12 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
         </main>
       </div>
 
+      {/* Sign Out Confirmation Modal — redirects to /login after sign out */}
       <SignOutModal
         isOpen={showSignOutModal}
         onClose={() => setShowSignOutModal(false)}
         onConfirm={async () => {
+          setShowSignOutModal(false);
           await signOut();
           router.push('/login');
         }}

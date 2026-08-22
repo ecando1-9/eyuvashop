@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,8 @@ import {
 export default function MerchantProductsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
@@ -42,11 +43,17 @@ export default function MerchantProductsPage() {
     setLoading(true);
     
     try {
-      const { data: mProfile } = await supabase.from('merchant_profiles').select('id').eq('user_id', user.id).single();
-      if (!mProfile) return;
+      const { data: mProfile } = await supabase.from('merchant_profiles').select('id').eq('user_id', user.id).maybeSingle();
+      if (!mProfile) {
+        setLoading(false);
+        return;
+      }
       
-      const { data: storeData } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).single();
-      if (!storeData) return;
+      const { data: storeData } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).maybeSingle();
+      if (!storeData) {
+        setLoading(false);
+        return;
+      }
       setStore(storeData);
 
       const { data, error } = await supabase.from('products')
@@ -80,8 +87,8 @@ export default function MerchantProductsPage() {
   };
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user?.id) loadData();
+  }, [user?.id]);
 
   const handleAction = async (id: string, action: 'submit' | 'archive' | 'delete') => {
     try {
@@ -270,15 +277,25 @@ export default function MerchantProductsPage() {
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            {product.approval_status === 'draft' && (
+                            {/* Submit for approval — only show for draft products */}
+                            {product.status === 'draft' && product.approval_status !== 'pending' && (
                               <button 
                                 onClick={() => handleAction(product.id, 'submit')}
-                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md" 
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-md transition-colors" 
                                 title="Submit for Approval"
                               >
                                 <Send className="w-4 h-4" />
                               </button>
                             )}
+
+                            {/* Edit product */}
+                            <Link
+                              href={`/merchant/products/${product.id}/edit`}
+                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                              title="Edit Product"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Link>
                             
                             <button 
                               onClick={() => handleAction(product.id, 'delete')}

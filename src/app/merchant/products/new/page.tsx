@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,12 +15,16 @@ import {
 export default function NewProductPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
+  // Stable supabase client reference — prevents it from being an unstable useEffect dep
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   const { upload: uploadImage, isUploading: imageUploading } = useCloudinaryUpload({ folder: 'eyuvashop/products', maxSizeMB: 5 });
   
   const [store, setStore] = useState<any>(null);
   const [mProfile, setMProfile] = useState<any | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState('');
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   
@@ -60,14 +64,91 @@ export default function NewProductPage() {
     if (!authLoading && !user) router.push("/login");
   }, [user, authLoading, router]);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIX: Load categories INDEPENDENTLY — categories are public (approved) data
+  // and should not wait for user authentication or merchant profile to be ready.
+  // Previously, categories were fetched inside the merchant profile block, so if
+  // the profile was loading or the user wasn't ready, categories never loaded.
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
-    async function loadData() {
+    async function loadCategories() {
+      try {
+        setCategoriesLoading(true);
+        setCategoriesError('');
+        const { data: catData, error } = await supabase
+          .from('categories')
+          .select('id, name')
+          .eq('approval_status', 'approved')
+          .order('name');
+        
+        if (error) throw error;
+        setCategories(catData || []);
+      } catch (err: any) {
+        console.error('Failed to load categories:', err);
+        setCategoriesError('Failed to load categories. Please refresh the page.');
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+    loadCategories();
+  }, [supabase]); // supabase is stable (useRef), so this runs exactly once on mount
+
+  // Load merchant profile + store data (depends on authenticated user)
+  useEffect(() => {
+    async function loadMerchantData() {
       if (!user) return;
       try {
-        const { data: profileData } = await supabase.from('merchant_profiles').select('*').eq('user_id', user.id).single();
+        let { data: profileData } = await supabase
+          .from('merchant_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // If no merchant profile exists yet, create one gracefully
+        if (!profileData) {
+          const { data: newProfile } = await supabase
+            .from('merchant_profiles')
+            .insert([{
+              user_id: user.id,
+              business_name: profile?.full_name || user.email?.split('@')[0] || 'Merchant Store',
+              business_email: user.email || '',
+              business_phone: profile?.phone || '',
+              verification_status: 'pending'
+            }])
+            .select()
+            .maybeSingle();
+          profileData = newProfile;
+        }
+
         if (profileData) {
           setMProfile(profileData);
-          const { data: storeData } = await supabase.from('stores').select('*').eq('merchant_id', profileData.id).single();
+          let { data: storeData } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('merchant_id', profileData.id)
+            .maybeSingle();
+
+          // If no store exists yet, auto-provision one
+          if (!storeData) {
+            const storeSlug = (profileData.business_name || 'store')
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-') + '-' + user.id.slice(0, 4);
+
+            const { data: newStore } = await supabase
+              .from('stores')
+              .insert([{
+                merchant_id: profileData.id,
+                name: profileData.business_name || 'My Store',
+                slug: storeSlug,
+                email: profileData.business_email || user.email,
+                phone: profileData.business_phone,
+                city: 'Local'
+              }])
+              .select()
+              .maybeSingle();
+            storeData = newStore;
+          }
+
           if (storeData) {
             setStore(storeData);
             setBrandingForm({
@@ -81,15 +162,13 @@ export default function NewProductPage() {
             });
           }
         }
-
-        const { data: catData } = await supabase.from('categories').select('id, name').order('name');
-        if (catData) setCategories(catData);
       } catch (err) {
-        console.error(err);
+        console.error("Error loading merchant data:", err);
       }
     }
-    loadData();
-  }, [user, profile, supabase]);
+    loadMerchantData();
+  }, [user?.id, profile, supabase]);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -331,17 +410,27 @@ export default function NewProductPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">Category *</label>
-              <select
-                name="category_id"
-                value={formData.category_id}
-                onChange={handleChange}
-                className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none bg-white"
-              >
-                <option value="">Select Category</option>
-                {categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              {categoriesError ? (
+                <div className="w-full p-2.5 border border-red-300 rounded-lg text-xs bg-red-50 text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  {categoriesError}
+                </div>
+              ) : (
+                <select
+                  name="category_id"
+                  value={formData.category_id}
+                  onChange={handleChange}
+                  disabled={categoriesLoading}
+                  className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none bg-white disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <option value="">
+                    {categoriesLoading ? 'Loading categories...' : `Select Category (${categories.length} available)`}
+                  </option>
+                  {categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div>

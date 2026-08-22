@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ShoppingBag, Package, TrendingUp, DollarSign, Plus, Clock, AlertTriangle, ChevronRight, Eye, RefreshCw, CheckCircle2,
@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MerchantLayout } from '@/components/merchant/MerchantLayout';
 
 export default function MerchantDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [stats, setStats] = useState<any>({
     today_revenue: 0,
@@ -39,14 +39,17 @@ export default function MerchantDashboard() {
 
   const [resubmitting, setResubmitting] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const supabase = createClient();
+
+  // Stable supabase ref — prevents triggering effects on every render
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
   const loadMerchantData = async () => {
     if (!user) return;
     try {
       const { data: mProfile } = await supabase
         .from('merchant_profiles')
-        .select('*')
+        .select('id, business_name, business_email, business_phone, business_address, verification_status, can_publish, rejection_reason, first_product_published_at, last_published_product_id')
         .eq('user_id', user.id)
         .maybeSingle();
         
@@ -58,41 +61,41 @@ export default function MerchantDashboard() {
           email: mProfile.business_email || user.email || '',
           address: mProfile.business_address || ''
         });
-        
-        try {
-          const { data: statsData } = await supabase.rpc('get_merchant_dashboard_stats', { p_merchant_id: mProfile.id });
-          if (statsData) {
-            setStats(statsData);
-          }
-        } catch {
-          // RPC might not exist yet
-        }
-        
-        const { data: stores } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).maybeSingle();
+
+        // Get store ID first, then run stats + orders + last published in parallel
+        const { data: stores } = await supabase
+          .from('stores')
+          .select('id')
+          .eq('merchant_id', mProfile.id)
+          .maybeSingle();
+
         if (stores) {
-          const { data: recentOrders } = await supabase.from('order_items')
-            .select('id, quantity, total_price, merchant_status, created_at, product:products(title), order:orders(order_number)')
-            .eq('store_id', stores.id)
-            .order('created_at', { ascending: false })
-            .limit(5);
-            
-          if (recentOrders) {
-            setOrders(recentOrders);
-          }
+          // Run all 3 queries in parallel instead of sequentially
+          const [statsRes, ordersRes, lastPubRes] = await Promise.all([
+            // Stats via RPC — wrapped in Promise.resolve so .catch() is available
+            Promise.resolve(supabase.rpc('get_merchant_dashboard_stats', { p_merchant_id: mProfile.id }))
+              .then(r => r.data)
+              .catch(() => null),
+            // Recent orders
+            supabase.from('order_items')
+              .select('id, quantity, total_price, merchant_status, created_at, product:products(title), order:orders(order_number)')
+              .eq('store_id', stores.id)
+              .order('created_at', { ascending: false })
+              .limit(5),
+            // Latest published product
+            supabase.from('products')
+              .select('id, title, title_te, price, created_at, updated_at, status, approval_status, category:categories(name)')
+              .eq('store_id', stores.id)
+              .eq('status', 'published')
+              .eq('approval_status', 'approved')
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ]);
 
-          // Fetch the latest published product to display in the Published lifecycle section
-          const { data: latestPub } = await supabase.from('products')
-            .select('id, title, title_te, price, created_at, updated_at, status, approval_status, category:categories(name)')
-            .eq('store_id', stores.id)
-            .eq('status', 'published')
-            .eq('approval_status', 'approved')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-          if (latestPub) {
-            setLastPublishedProduct(latestPub);
-          }
+          if (statsRes) setStats(statsRes);
+          if (ordersRes.data) setOrders(ordersRes.data);
+          if (lastPubRes.data) setLastPublishedProduct(lastPubRes.data);
         }
       } else {
         // Pre-fill from user auth
@@ -108,9 +111,12 @@ export default function MerchantDashboard() {
     }
   };
 
+  // Only re-run when the user ID changes (stable dep), not on every profile update
   useEffect(() => {
-    loadMerchantData();
-  }, [user, profile]);
+    if (user?.id) {
+      loadMerchantData();
+    }
+  }, [user?.id]);
 
   const handleAccessRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

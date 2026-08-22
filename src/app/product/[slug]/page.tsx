@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -19,11 +19,14 @@ import { toast } from 'react-hot-toast';
 import { PriceHistoryModal } from '@/components/merchant/PriceHistoryModal';
 import { History } from 'lucide-react';
 
-export default function ProductDetailPage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
-  const supabase = createClient();
+export default function ProductDetailPage() {
+  const params = useParams();
+  const slug = params?.slug as string;
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   const { user } = useAuth();
   const router = useRouter();
+
   
   const addItemToCart = useCartStore((state: any) => state.addItem);
   const { toggleWishlist, isInWishlist } = useWishlistStore();
@@ -39,6 +42,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
   const [priceHistoryOpen, setPriceHistoryOpen] = useState(false);
 
   useEffect(() => {
+    if (!slug) return;
+
     const fetchProductDetails = async () => {
       setLoading(true);
       // Fetch product
@@ -100,7 +105,8 @@ export default function ProductDetailPage({ params }: { params: { slug: string }
     };
 
     fetchProductDetails();
-  }, [slug, supabase, user, router]);
+  }, [slug, supabase, user?.id, router]);
+
 
   const handleQuantityChange = (type: 'inc' | 'dec') => {
     if (type === 'inc' && quantity < product.stock_quantity) {

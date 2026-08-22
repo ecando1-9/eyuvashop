@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +11,8 @@ import { Search, Loader2, Edit2, Check, X } from "lucide-react";
 export default function MerchantInventoryPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
   
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
@@ -33,11 +34,17 @@ export default function MerchantInventoryPage() {
     setLoading(true);
     
     try {
-      const { data: mProfile } = await supabase.from('merchant_profiles').select('id').eq('user_id', user.id).single();
-      if (!mProfile) return;
+      const { data: mProfile } = await supabase.from('merchant_profiles').select('id').eq('user_id', user.id).maybeSingle();
+      if (!mProfile) {
+        setLoading(false);
+        return;
+      }
       
-      const { data: storeData } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).single();
-      if (!storeData) return;
+      const { data: storeData } = await supabase.from('stores').select('id').eq('merchant_id', mProfile.id).maybeSingle();
+      if (!storeData) {
+        setLoading(false);
+        return;
+      }
       setStore(storeData);
 
       const { data, error } = await supabase.from('products')
@@ -57,8 +64,9 @@ export default function MerchantInventoryPage() {
   };
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user?.id) loadData();
+  }, [user?.id]);
+
 
   const handleStartEdit = (product: any) => {
     setEditingId(product.id);

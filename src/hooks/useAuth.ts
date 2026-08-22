@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { UserProfile } from '@/types/database';
@@ -26,63 +25,69 @@ export function useAuth(): UseAuthReturn {
     unreadNotifications: 0,
   });
 
-  const router = useRouter();
   const supabase = createClient();
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  // Accept currentUser directly — avoids a redundant getUser() round-trip
+  const fetchProfile = useCallback(async (currentUser: User) => {
     try {
-      let notifCount = 0;
       let profileRes: any = { data: null };
 
       try {
         profileRes = await supabase
           .from('users')
           .select('*')
-          .eq('id', userId)
+          .eq('id', currentUser.id)
           .maybeSingle();
       } catch {
         profileRes = { data: null };
       }
 
-      notifCount = 0;
-
       const profileObj = profileRes.data ? (profileRes.data as UserProfile) : null;
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const metaName = currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name;
-      const metaAvatar = currentUser?.user_metadata?.avatar_url || currentUser?.user_metadata?.picture || currentUser?.user_metadata?.avatarUrl || null;
+      const metaName = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name;
+      const metaAvatar =
+        currentUser.user_metadata?.avatar_url ||
+        currentUser.user_metadata?.picture ||
+        currentUser.user_metadata?.avatarUrl ||
+        null;
 
       // If user was previously soft-deleted and logs in again, reactivate public.users row
-      if (currentUser && ((profileObj as any)?.deleted_at || currentUser?.user_metadata?.is_deleted)) {
-        await supabase.from('users').upsert({
-          id: userId,
-          email: currentUser.email || '',
-          full_name: metaName || currentUser.email?.split('@')[0] || 'User',
-          avatar_url: metaAvatar,
-          is_active: true,
-          deleted_at: null,
-        }, { onConflict: 'id' });
+      if ((profileObj as any)?.deleted_at || currentUser.user_metadata?.is_deleted) {
+        await supabase.from('users').upsert(
+          {
+            id: currentUser.id,
+            email: currentUser.email || '',
+            full_name: metaName || currentUser.email?.split('@')[0] || 'User',
+            avatar_url: metaAvatar,
+            is_active: true,
+            deleted_at: null,
+          },
+          { onConflict: 'id' }
+        );
 
         await supabase.auth.updateUser({
-          data: { is_deleted: false, deleted_at: null }
+          data: { is_deleted: false, deleted_at: null },
         });
       }
 
       const finalProfile: UserProfile = profileObj
         ? {
             ...profileObj,
-            role: (profileObj.role === 'admin' || currentUser?.user_metadata?.role === 'admin') ? 'admin' : (profileObj.role || 'customer'),
-            full_name: profileObj.full_name || metaName || currentUser?.email?.split('@')[0] || 'User',
+            role:
+              profileObj.role === 'admin' || currentUser.user_metadata?.role === 'admin'
+                ? 'admin'
+                : profileObj.role || 'customer',
+            full_name: profileObj.full_name || metaName || currentUser.email?.split('@')[0] || 'User',
             avatar_url: profileObj.avatar_url || metaAvatar,
             deleted_at: null,
             is_active: true,
           }
         : {
-            id: userId,
-            email: currentUser?.email || '',
+            id: currentUser.id,
+            email: currentUser.email || '',
             phone: undefined,
-            full_name: metaName || currentUser?.email?.split('@')[0] || 'User',
+            full_name: metaName || currentUser.email?.split('@')[0] || 'User',
             avatar_url: metaAvatar,
-            role: currentUser?.user_metadata?.role === 'admin' ? 'admin' : 'customer',
+            role: currentUser.user_metadata?.role === 'admin' ? 'admin' : 'customer',
             is_active: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -90,7 +95,7 @@ export function useAuth(): UseAuthReturn {
 
       return {
         profile: finalProfile,
-        unreadNotifications: notifCount,
+        unreadNotifications: 0,
       };
     } catch {
       return { profile: null, unreadNotifications: 0 };
@@ -100,17 +105,16 @@ export function useAuth(): UseAuthReturn {
   const refreshProfile = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      const { profile, unreadNotifications } = await fetchProfile(user.id);
+      const { profile, unreadNotifications } = await fetchProfile(user);
       setState((prev) => ({ ...prev, user, profile, unreadNotifications }));
     }
   }, [supabase, fetchProfile]);
 
+  // signOut clears auth state only. The caller is responsible for navigation.
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
-    router.push('/');
-    router.refresh();
-  }, [supabase, router]);
+  }, [supabase]);
 
   useEffect(() => {
     let mounted = true;
@@ -120,7 +124,7 @@ export function useAuth(): UseAuthReturn {
         const { data: { session } } = await supabase.auth.getSession();
 
         if (session?.user && mounted) {
-          const { profile, unreadNotifications } = await fetchProfile(session.user.id);
+          const { profile, unreadNotifications } = await fetchProfile(session.user);
           if (mounted) {
             setState({
               user: session.user,
@@ -146,7 +150,7 @@ export function useAuth(): UseAuthReturn {
         if (!mounted) return;
 
         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
-          const { profile, unreadNotifications } = await fetchProfile(session.user.id);
+          const { profile, unreadNotifications } = await fetchProfile(session.user);
           if (mounted) {
             setState({
               user: session.user,
