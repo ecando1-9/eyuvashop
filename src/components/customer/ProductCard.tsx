@@ -7,6 +7,7 @@ import { Product } from '@/types/database';
 import { formatCurrency, calculateDiscount } from '@/lib/utils';
 import { useCartStore } from '@/hooks/useCartStore';
 import { useWishlistStore } from '@/hooks/useWishlistStore';
+import { toast } from 'react-hot-toast';
 
 interface ProductCardProps {
   product: Product;
@@ -15,22 +16,32 @@ interface ProductCardProps {
 
 export function ProductCard({ product, onQuickView }: ProductCardProps) {
   const addItem = useCartStore((state) => state.addItem);
+  const cartQuantity = useCartStore((state) =>
+    state.items.find((item) => item.product.id === product.id)?.quantity || 0
+  );
   const { toggleWishlist, isInWishlist } = useWishlistStore();
   const isWishlisted = isInWishlist(product.id);
 
   const discountPercent = calculateDiscount(product.price, product.compare_at_price ?? undefined);
   const primaryImage = product.images?.find((img) => img.is_primary)?.url || product.images?.[0]?.url || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500';
+  const stockQuantity = typeof product.stock_quantity === 'number' ? product.stock_quantity : undefined;
+  const remainingStock = stockQuantity === undefined ? undefined : Math.max(stockQuantity - cartQuantity, 0);
+  const isOutOfStock = stockQuantity !== undefined && stockQuantity <= 0;
+  const isCartAtStockLimit = remainingStock !== undefined && remainingStock <= 0;
+  const disableAddToCart = isOutOfStock || isCartAtStockLimit;
 
   return (
     <div className="group bg-white rounded-2xl border border-gray-100 p-3 flex flex-col justify-between hover:shadow-xl hover:border-gray-200 transition-all duration-300 relative">
       {/* Image Container */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-gray-50 mb-3">
-        <Image
-          src={primaryImage}
-          alt={product.title}
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+        <Link href={`/product/${product.slug}`} className="absolute inset-0 z-0">
+          <Image
+            src={primaryImage}
+            alt={product.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        </Link>
 
         {/* Discount Badge */}
         {discountPercent > 0 && (
@@ -41,8 +52,12 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
 
         {/* Wishlist Button */}
         <button
-          onClick={() => toggleWishlist(product)}
-          className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-md transition-colors shadow-sm ${
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWishlist(product);
+          }}
+          className={`absolute top-2 right-2 z-10 p-2 rounded-full backdrop-blur-md transition-colors shadow-sm ${
             isWishlisted ? 'bg-red-50 text-red-500' : 'bg-white/80 text-gray-600 hover:text-red-500'
           }`}
         >
@@ -52,7 +67,11 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
         {/* Quick View Button on Hover */}
         {onQuickView && (
           <button
-            onClick={() => onQuickView(product)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onQuickView(product);
+            }}
             className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white/90 backdrop-blur-md text-gray-900 text-xs font-semibold px-3 py-1.5 rounded-full shadow-md hover:bg-[#FF6B00] hover:text-white transition-all flex items-center gap-1.5"
           >
             <Eye className="w-3.5 h-3.5" /> Quick View
@@ -107,13 +126,30 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
           </div>
 
           <button
-            onClick={() => addItem(product)}
-            className="bg-gray-900 hover:bg-[#FF6B00] text-white p-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center active:scale-95"
-            title="Add to Cart"
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const result = await addItem(product);
+
+              if (result.success) {
+                toast.success('Added to cart');
+              } else {
+                toast.error(result.message || 'Out of stock');
+              }
+            }}
+            disabled={disableAddToCart}
+            className="bg-gray-900 hover:bg-[#FF6B00] text-white p-2.5 rounded-xl transition-colors shadow-sm flex items-center justify-center active:scale-95 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:active:scale-100"
+            title={disableAddToCart ? 'Out of stock' : 'Add to Cart'}
           >
             <ShoppingBag className="w-4 h-4" />
           </button>
         </div>
+
+        {remainingStock !== undefined && (
+          <div className={`text-[11px] font-semibold ${remainingStock > 0 ? 'text-amber-600' : 'text-red-500'}`}>
+            {remainingStock > 0 ? `${remainingStock} available` : 'Out of stock'}
+          </div>
+        )}
       </div>
     </div>
   );

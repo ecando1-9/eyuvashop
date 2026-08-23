@@ -7,7 +7,7 @@ import {
   ShieldCheck, LayoutDashboard, Store, Package, ShoppingBag, Grid, 
   Users, FileText, DollarSign, LogOut, Menu, X, ChevronRight, Home, 
   ExternalLink, Bell, Search, ShieldAlert, CheckCircle2, Clock
-} from 'lucide-react';
+, Image as ImageIcon, LayoutTemplate , Tag} from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { createClient } from '@/lib/supabase/client';
 import { SignOutModal } from '@/components/common/SignOutModal';
@@ -91,6 +91,8 @@ export function AdminLayout({ children, title, subtitle, actions }: AdminLayoutP
     { label: 'Categories & Tax', href: '/admin/categories', icon: Grid },
     { label: 'User Management', href: '/admin/users', icon: Users },
     { label: 'Audit Trail & DB Logs', href: '/admin/audit-log', icon: FileText },
+    { label: 'Banners', href: '/admin/banners', icon: ImageIcon },
+    { label: 'Home Sections', href: '/admin/home-sections', icon: LayoutTemplate }
   ];
 
   const [avatarError, setAvatarError] = useState(false);

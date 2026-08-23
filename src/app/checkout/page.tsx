@@ -1,23 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Link from 'next/link';
-import { CheckCircle2, ChevronRight, MapPin, CreditCard, ShoppingBag, Plus } from 'lucide-react';
+import { CheckCircle2, MapPin, CreditCard, ShoppingBag, Plus } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/lib/utils';
+import { useCartStore } from '@/hooks/useCartStore';
+
+
+
+
+interface CheckoutAddress {
+  id: string;
+  full_name: string;
+  phone: string;
+  address_line1: string;
+  address_line2?: string | null;
+  area?: string | null;
+  city: string;
+  state: string;
+  postal_code: string;
+  address_type: string;
+}
+
+interface CheckoutCartItem {
+  id: string;
+  product_id: string;
+  variant_id?: string | null;
+  quantity: number;
+  product?: {
+    id: string;
+    title: string;
+    price: number;
+    store_id: string;
+    images?: { url: string }[];
+  };
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { user } = useAuth();
   const supabase = createClient();
+  const syncCartFromSupabase = useCartStore((state) => state.syncFromSupabase);
   
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  const [addresses, setAddresses] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
-  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartItems, setCartItems] = useState<CheckoutCartItem[]>([]);
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderId, setOrderId] = useState<string>('');
@@ -27,15 +60,7 @@ export default function CheckoutPage() {
     area: '', landmark: '', city: '', state: '', postal_code: '', address_type: 'home'
   });
 
-  useEffect(() => {
-    if (user === null) {
-      router.push('/login?redirect=/checkout');
-    } else if (user) {
-      fetchCheckoutData();
-    }
-  }, [user, router]);
-
-  const fetchCheckoutData = async () => {
+  const fetchCheckoutData = useCallback(async () => {
     setIsLoading(true);
     try {
       // Fetch addresses
@@ -52,6 +77,10 @@ export default function CheckoutPage() {
         setShowNewAddressForm(true);
       }
 
+      if (user?.id) {
+        await syncCartFromSupabase(user.id);
+      }
+
       // Fetch cart and actual product prices
       const { data: cartData } = await supabase
         .from('cart')
@@ -59,6 +88,26 @@ export default function CheckoutPage() {
         .eq('user_id', user?.id);
       
       if (!cartData || cartData.length === 0) {
+        const localCartItems = useCartStore.getState().items;
+        if (localCartItems.length > 0) {
+          setCartItems(
+            localCartItems.map((item) => ({
+              id: `${item.product.id}-${item.selectedVariantId || 'default'}`,
+              product_id: item.product.id,
+              variant_id: item.selectedVariantId || null,
+              quantity: item.quantity,
+              product: {
+                id: item.product.id,
+                title: item.product.title,
+                price: item.product.price,
+                store_id: item.product.store_id,
+                images: item.product.images?.map((image) => ({ url: image.url })) || [],
+              },
+            }))
+          );
+          return;
+        }
+
         router.push('/cart');
         return;
       }
@@ -69,7 +118,15 @@ export default function CheckoutPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [router, supabase, syncCartFromSupabase, user?.id]);
+
+  useEffect(() => {
+    if (user === null) {
+      router.push('/login?redirect=/checkout');
+    } else if (user) {
+      fetchCheckoutData();
+    }
+  }, [fetchCheckoutData, user, router]);
 
   const handleSaveAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,11 +164,11 @@ export default function CheckoutPage() {
       // We will call the RPC here
       // For now, construct the required items array
       const items = cartItems.map(item => ({
-        store_id: item.product.store_id,
+        store_id: item.product?.store_id,
         product_id: item.product_id,
         variant_id: item.variant_id,
         quantity: item.quantity,
-        unit_price: item.product.price // Validated from DB query
+        unit_price: item.product?.price || 0 // Validated from DB query
       }));
       
       const { data, error } = await supabase.rpc('create_order_with_items', {
@@ -138,12 +195,24 @@ export default function CheckoutPage() {
   const total = subtotal + shipping;
 
   if (isLoading) {
-    return <div className="container mx-auto p-4 flex justify-center items-center min-h-[60vh]"><div className="w-8 h-8 border-4 border-[#FF6B00] border-t-transparent rounded-full animate-spin"></div></div>;
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col pb-20 md:pb-0">
+        
+        <main className="flex-grow container mx-auto p-4 flex justify-center items-center min-h-[60vh]">
+          <div className="w-8 h-8 border-4 border-[#FF6B00] border-t-transparent rounded-full animate-spin"></div>
+        </main>
+        
+        
+      </div>
+    );
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-6xl">
-      <h1 className="text-3xl font-bold mb-8 text-[#0B1E3D]">Checkout</h1>
+    <div className="min-h-screen bg-gray-50 flex flex-col pb-20 md:pb-0">
+      
+
+      <main className="flex-grow container mx-auto p-4 md:p-8 max-w-6xl">
+        <h1 className="text-3xl font-bold mb-8 text-[#0B1E3D]">Checkout</h1>
 
       {/* Progress Steps */}
       <div className="flex items-center mb-8 px-4">
@@ -277,7 +346,14 @@ export default function CheckoutPage() {
                   <div key={item.id} className="flex items-center gap-4 py-2 border-b last:border-0">
                     <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                       {item.product?.images?.[0]?.url && (
-                        <img src={item.product.images[0].url} alt="" className="w-full h-full object-cover" />
+                        <Image
+                          src={item.product.images[0].url}
+                          alt={item.product?.title || 'Product'}
+                          width={64}
+                          height={64}
+                          unoptimized
+                          className="w-full h-full object-cover"
+                        />
                       )}
                     </div>
                     <div className="flex-1">
@@ -285,7 +361,7 @@ export default function CheckoutPage() {
                       <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
                     </div>
                     <div className="font-medium">
-                      {formatCurrency(item.product?.price * item.quantity)}
+                      {formatCurrency((item.product?.price || 0) * item.quantity)}
                     </div>
                   </div>
                 ))}
@@ -384,6 +460,10 @@ export default function CheckoutPage() {
           </div>
         )}
       </div>
+      </main>
+
+      
+      
     </div>
   );
 }

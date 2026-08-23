@@ -27,6 +27,7 @@ export default function MerchantDashboard() {
   });
   
   const [merchantProfile, setMerchantProfile] = useState<any | null>(null);
+  const [store, setStore] = useState<any | null>(null);
   const [lastPublishedProduct, setLastPublishedProduct] = useState<any | null>(null);
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [submittingAccess, setSubmittingAccess] = useState(false);
@@ -65,11 +66,13 @@ export default function MerchantDashboard() {
         // Get store ID first, then run stats + orders + last published in parallel
         const { data: stores } = await supabase
           .from('stores')
-          .select('id')
+          .select('id, name, logo_url')
           .eq('merchant_id', mProfile.id)
           .maybeSingle();
 
         if (stores) {
+          setStore(stores);
+          const storeId = stores.id;
           // Run all 3 queries in parallel instead of sequentially
           const [statsRes, ordersRes, lastPubRes] = await Promise.all([
             // Stats via RPC — wrapped in Promise.resolve so .catch() is available
@@ -213,13 +216,13 @@ export default function MerchantDashboard() {
     }
   };
 
-  const merchantName = merchantProfile?.business_name || profile?.full_name || user?.email?.split('@')[0] || "Merchant Store";
+  const storeName = store?.name || merchantProfile?.business_name || profile?.full_name || user?.email?.split('@')[0]?.replace(/[0-9]/g, '') || "Merchant Store";
   const verificationStatus = merchantProfile?.verification_status;
   const canPublish = merchantProfile?.can_publish || verificationStatus === 'approved';
   const hasPublishedProduct = !!lastPublishedProduct || (stats.published_products > 0);
 
   return (
-    <MerchantLayout title={`Welcome back, ${merchantName}`} subtitle="Manage publishing permissions, store performance, and catalog items.">
+    <MerchantLayout title={`Welcome back, ${storeName}`} subtitle="Manage publishing permissions, store performance, and catalog items.">
       <div className="space-y-6">
         {/* Toast Alert */}
         {toastMsg && (

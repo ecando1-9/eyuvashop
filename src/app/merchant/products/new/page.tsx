@@ -11,6 +11,7 @@ import {
   Save, X, Image as ImageIcon, History, Loader2, Store, Phone, Mail, MapPin, 
   ShieldCheck, AlertCircle, Sparkles, CheckCircle2, Plus 
 } from "lucide-react";
+import { sanitizeInput, allowOnlyDigits } from "@/lib/utils";
 
 export default function NewProductPage() {
   const { user, profile, loading: authLoading } = useAuth();
@@ -23,6 +24,8 @@ export default function NewProductPage() {
   const [store, setStore] = useState<any>(null);
   const [mProfile, setMProfile] = useState<any | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const [homeSections, setHomeSections] = useState<any[]>([]);
+  const [allLabels, setAllLabels] = useState<any[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -146,7 +149,8 @@ export default function NewProductPage() {
                 slug: storeSlug,
                 email: profileData.business_email || user.email,
                 phone: profileData.business_phone,
-                city: 'Local'
+                city: 'Local',
+                is_active: true
               }])
               .select()
               .maybeSingle();
@@ -226,9 +230,44 @@ export default function NewProductPage() {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    // Basic OWASP input sanitization to strip dangerous script tags
+    const sanitizedValue = sanitizeInput(value);
+    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
+  };
+
+  const handlePincodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = allowOnlyDigits(e.target.value).slice(0, 6);
+    setBrandingForm(prev => ({ ...prev, pin_code: val }));
+    
+    if (val.length === 6) {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${val}`);
+        const data = await res.json();
+        if (data && data[0]?.Status === 'Success') {
+          const postOffice = data[0].PostOffice[0];
+          setBrandingForm(prev => ({
+            ...prev,
+            pin_code: val,
+            city: postOffice.District,
+            state: postOffice.State
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch pincode details", err);
+      }
+    }
+  };
+
+  const handleBrandingChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    let finalValue = sanitizeInput(value);
+    
+    // Apply length constraints
+    if (name === 'store_name') finalValue = finalValue.slice(0, 32);
+    if (name === 'phone') finalValue = allowOnlyDigits(finalValue).slice(0, 10);
+    
+    setBrandingForm(prev => ({ ...prev, [name]: finalValue }));
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,6 +344,11 @@ export default function NewProductPage() {
       return;
     }
 
+    if (brandingForm.phone.trim().length !== 10) {
+      alert("Customer Support Phone must be exactly 10 digits.");
+      return;
+    }
+
     try {
       setSavingBranding(true);
 
@@ -328,6 +372,7 @@ export default function NewProductPage() {
           city: brandingForm.city.trim(),
           state: brandingForm.state.trim(),
           pin_code: brandingForm.pin_code.trim(),
+          is_active: true,
           updated_at: new Date().toISOString()
         }).eq('id', store.id);
       }
@@ -449,9 +494,10 @@ export default function NewProductPage() {
               <input
                 type="text"
                 name="title"
+                maxLength={100}
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="e.g. Sona Masoori Raw Rice 25kg"
+                placeholder="e.g. Sona Masoori Raw Rice 25kg (Max 100 chars)"
                 className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
               />
             </div>
@@ -461,9 +507,10 @@ export default function NewProductPage() {
               <input
                 type="text"
                 name="title_te"
+                maxLength={100}
                 value={formData.title_te}
                 onChange={handleChange}
-                placeholder="ఉదా: సోనా మసూరి బియ్యం 25 కేజీలు"
+                placeholder="ఉదా: సోనా మసూరి బియ్యం 25 కేజీలు (గరిష్టంగా 100 అక్షరాలు)"
                 className="w-full p-2.5 border border-orange-200 bg-orange-50/20 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
               />
             </div>
@@ -534,6 +581,7 @@ export default function NewProductPage() {
               <input
                 type="text"
                 name="brand"
+                maxLength={50}
                 value={formData.brand}
                 onChange={handleChange}
                 placeholder="e.g. Organic Heritage"
@@ -546,6 +594,7 @@ export default function NewProductPage() {
               <input
                 type="text"
                 name="sku"
+                maxLength={50}
                 value={formData.sku}
                 onChange={handleChange}
                 placeholder="Auto-generated if blank"
@@ -559,9 +608,10 @@ export default function NewProductPage() {
             <input
               type="text"
               name="short_description"
+              maxLength={200}
               value={formData.short_description}
               onChange={handleChange}
-              placeholder="Brief 1-sentence product summary"
+              placeholder="Brief 1-sentence product summary (Max 200 chars)"
               className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
             />
           </div>
@@ -571,9 +621,10 @@ export default function NewProductPage() {
             <textarea
               name="description"
               rows={4}
+              maxLength={2000}
               value={formData.description}
               onChange={handleChange}
-              placeholder="Detailed ingredients, features, specifications..."
+              placeholder="Detailed ingredients, features, specifications... (Max 2000 chars)"
               className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
             ></textarea>
           </div>
@@ -684,7 +735,12 @@ export default function NewProductPage() {
           <div className="flex flex-wrap gap-4 items-center">
             {images.map((img, idx) => (
               <div key={idx} className={`relative w-28 h-28 rounded-xl border-2 overflow-hidden bg-gray-50 flex items-center justify-center ${img.is_primary ? 'border-[#FF6B00]' : 'border-gray-200'}`}>
-                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                <img 
+                  src={img.url} 
+                  alt="" 
+                  className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" 
+                  onClick={() => setPrimaryImage(idx)}
+                />
                 <button
                   type="button"
                   onClick={() => removeImage(idx)}
@@ -723,7 +779,7 @@ export default function NewProductPage() {
                   accept="image/*"
                   onChange={handleImageUpload}
                   disabled={imageUploading}
-                  className="hidden"
+                  className="sr-only"
                 />
               </label>
             )}
@@ -783,10 +839,12 @@ export default function NewProductPage() {
                     <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
+                      name="store_name"
                       required
+                      maxLength={32}
                       value={brandingForm.store_name}
-                      onChange={(e) => setBrandingForm({ ...brandingForm, store_name: e.target.value })}
-                      placeholder="e.g. Yuva Organic Mart"
+                      onChange={handleBrandingChange}
+                      placeholder="e.g. Yuva Organic Mart (Max 32 chars)"
                       className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
                     />
                   </div>
@@ -799,10 +857,12 @@ export default function NewProductPage() {
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
                         type="tel"
+                        name="phone"
                         required
+                        maxLength={10}
                         value={brandingForm.phone}
-                        onChange={(e) => setBrandingForm({ ...brandingForm, phone: e.target.value })}
-                        placeholder="+91 98765 43210"
+                        onChange={handleBrandingChange}
+                        placeholder="10 digit mobile number"
                         className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
                       />
                     </div>
@@ -814,9 +874,10 @@ export default function NewProductPage() {
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
                         type="email"
+                        name="email"
                         required
                         value={brandingForm.email}
-                        onChange={(e) => setBrandingForm({ ...brandingForm, email: e.target.value })}
+                        onChange={handleBrandingChange}
                         placeholder="support@store.com"
                         className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
                       />
@@ -830,9 +891,11 @@ export default function NewProductPage() {
                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                     <textarea
                       rows={2}
+                      name="address"
                       required
+                      maxLength={200}
                       value={brandingForm.address}
-                      onChange={(e) => setBrandingForm({ ...brandingForm, address: e.target.value })}
+                      onChange={handleBrandingChange}
                       placeholder="Shop/Unit No, Street Name, Area..."
                       className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
                     />
@@ -841,14 +904,29 @@ export default function NewProductPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
+                    <label className="block font-bold text-slate-700 mb-1">PIN Code *</label>
+                    <input
+                      type="text"
+                      name="pin_code"
+                      required
+                      maxLength={6}
+                      value={brandingForm.pin_code}
+                      onChange={handlePincodeChange}
+                      placeholder="e.g. 520001"
+                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
+                    />
+                  </div>
+
+                  <div>
                     <label className="block font-bold text-slate-700 mb-1">City / Town *</label>
                     <input
                       type="text"
+                      name="city"
                       required
                       value={brandingForm.city}
-                      onChange={(e) => setBrandingForm({ ...brandingForm, city: e.target.value })}
+                      onChange={handleBrandingChange}
                       placeholder="e.g. Vijayawada"
-                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
+                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs bg-slate-50"
                     />
                   </div>
 
@@ -856,20 +934,11 @@ export default function NewProductPage() {
                     <label className="block font-bold text-slate-700 mb-1">State</label>
                     <input
                       type="text"
+                      name="state"
                       value={brandingForm.state}
-                      onChange={(e) => setBrandingForm({ ...brandingForm, state: e.target.value })}
-                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">PIN Code</label>
-                    <input
-                      type="text"
-                      value={brandingForm.pin_code}
-                      onChange={(e) => setBrandingForm({ ...brandingForm, pin_code: e.target.value })}
-                      placeholder="520001"
-                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs"
+                      onChange={handleBrandingChange}
+                      placeholder="e.g. Andhra Pradesh"
+                      className="w-full p-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#FF6B00] outline-none text-xs bg-slate-50"
                     />
                   </div>
                 </div>
@@ -928,21 +997,18 @@ export default function NewProductPage() {
                     maxLength={50}
                     placeholder="e.g. Sarees, Sweets"
                     value={quickCategoryForm.name}
-                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, name: e.target.value })}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, name: sanitizeInput(e.target.value) })}
                     className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
-                    Description <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Optional Description</label>
                   <textarea
-                    rows={2}
                     maxLength={200}
-                    placeholder="Short description..."
+                    rows={2}
                     value={quickCategoryForm.description}
-                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, description: e.target.value })}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, description: sanitizeInput(e.target.value) })}
                     className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
                   />
                 </div>

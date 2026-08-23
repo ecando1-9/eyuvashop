@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Grid, Search, ChevronRight, Sparkles } from 'lucide-react';
-import { Header } from '@/components/common/Header';
-import { Footer } from '@/components/common/Footer';
-import { BottomNav } from '@/components/common/BottomNav';
+import { getDefaultCategoryImage } from '@/lib/utils';
+
+
+
 import { EmptyState } from '@/components/ui/EmptyState';
 import { createClient } from '@/lib/supabase/client';
 
@@ -63,7 +64,7 @@ export default function CategoriesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      <Header />
+      
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-8">
         {/* Header */}
@@ -120,17 +121,7 @@ export default function CategoriesPage() {
                 className="group bg-white rounded-2xl border border-gray-100 p-5 flex flex-col items-center text-center hover:shadow-lg hover:border-[#FF6B00]/30 transition-all duration-300 active:scale-95"
               >
                 <div className="relative w-20 h-20 rounded-2xl overflow-hidden mb-3 bg-orange-50 group-hover:scale-110 transition-transform duration-300 shadow-sm flex items-center justify-center">
-                  {category.image_url ? (
-                    <Image
-                      src={category.image_url}
-                      alt={category.name}
-                      fill
-                      className="object-cover"
-                      sizes="80px"
-                    />
-                  ) : (
-                    <Sparkles className="w-8 h-8 text-[#FF6B00]" />
-                  )}
+                  <Image src={category.image_url || getDefaultCategoryImage(category.name)} alt={category.name} fill className="object-cover" sizes="80px" />
                 </div>
                 <h3 className="font-bold text-sm text-gray-900 group-hover:text-[#FF6B00] transition-colors leading-tight line-clamp-2">
                   {category.name}
@@ -185,8 +176,8 @@ export default function CategoriesPage() {
         )}
       </main>
 
-      <Footer />
-      <BottomNav />
+      
+      
     </div>
   );
 }

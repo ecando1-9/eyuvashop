@@ -6,9 +6,9 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Search, ShoppingBag, Heart, Bell, User, Store, Menu, X,
-  Package, MapPin, Settings, LogOut, ChevronDown, ChevronRight, Shield, ShieldAlert, Grid,
+  Package, MapPin, Settings, LogOut, ChevronDown, ChevronRight, Shield, Grid,
 } from 'lucide-react';
-import { useCartStore } from '@/hooks/useCartStore';
+import { useCartStore, useSyncCart } from '@/hooks/useCartStore';
 import { useWishlistStore } from '@/hooks/useWishlistStore';
 import { useAuth } from '@/hooks/useAuth';
 import { SignOutModal } from '@/components/common/SignOutModal';
@@ -25,6 +25,7 @@ export function Header() {
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const router = useRouter();
+  useSyncCart();
 
   const handleSearchSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -38,10 +39,13 @@ export function Header() {
   const { user, profile, loading, unreadNotifications, signOut } = useAuth();
 
   useEffect(() => {
-    setMounted(true);
+    const frame = requestAnimationFrame(() => setMounted(true));
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
 
   // Close dropdown on outside click
@@ -57,7 +61,8 @@ export function Header() {
 
   // Close mobile menu on route change
   useEffect(() => {
-    setMobileMenuOpen(false);
+    const frame = requestAnimationFrame(() => setMobileMenuOpen(false));
+    return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
   const userDisplayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';

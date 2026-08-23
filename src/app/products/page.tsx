@@ -4,9 +4,9 @@ import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { ProductCard } from '@/components/customer/ProductCard';
-import { Header } from '@/components/common/Header';
-import { Footer } from '@/components/common/Footer';
-import { BottomNav } from '@/components/common/BottomNav';
+
+
+
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Filter, Search, X, SlidersHorizontal, ChevronRight, ChevronLeft } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
@@ -260,7 +260,7 @@ function ProductsContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
+      
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 mb-16 md:mb-0">
         
@@ -407,8 +407,8 @@ function ProductsContent() {
         </div>
       </main>
 
-      <Footer />
-      <BottomNav />
+      
+      
     </div>
   );
 }

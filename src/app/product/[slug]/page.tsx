@@ -5,12 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useUserTracking } from '@/hooks/useUserTracking';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartStore } from '@/hooks/useCartStore';
 import { useWishlistStore } from '@/hooks/useWishlistStore';
-import { Header } from '@/components/common/Header';
-import { Footer } from '@/components/common/Footer';
-import { BottomNav } from '@/components/common/BottomNav';
+
+
+
 import { ProductCard } from '@/components/customer/ProductCard';
 import { formatCurrency } from '@/lib/utils';
 import { Star, Minus, Plus, ShoppingCart, Heart, Store, ShieldCheck, Truck, RotateCcw, MapPin, Phone } from 'lucide-react';
@@ -32,6 +33,9 @@ export default function ProductDetailPage() {
   const { toggleWishlist, isInWishlist } = useWishlistStore();
 
   const [product, setProduct] = useState<any>(null);
+  const cartQuantity = useCartStore((state) =>
+    product ? state.items.find((item) => item.product.id === product.id)?.quantity || 0 : 0
+  );
   const [reviews, setReviews] = useState<any[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,23 +113,24 @@ export default function ProductDetailPage() {
 
 
   const handleQuantityChange = (type: 'inc' | 'dec') => {
-    if (type === 'inc' && quantity < product.stock_quantity) {
+    const maxAddable = Math.max((product.stock_quantity || 0) - cartQuantity, 0);
+
+    if (type === 'inc' && quantity < maxAddable) {
       setQuantity(q => q + 1);
     } else if (type === 'dec' && quantity > 1) {
       setQuantity(q => q - 1);
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!product || product.stock_quantity === 0) return;
-    addItemToCart({
-      product_id: product.id,
-      quantity,
-      price: product.price,
-      title: product.title,
-      store_id: product.store_id
-    });
-    toast.success('Added to cart');
+    const result = await addItemToCart(product as any, quantity);
+
+    if (result?.success) {
+      toast.success('Added to cart');
+    } else {
+      toast.error(result?.message || 'Out of stock');
+    }
   };
 
   const handleWishlist = () => {
@@ -136,12 +141,12 @@ export default function ProductDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header />
+        
         <div className="flex-grow flex items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF6B00]"></div>
         </div>
-        <Footer />
-        <BottomNav />
+        
+        
       </div>
     );
   }
@@ -149,13 +154,17 @@ export default function ProductDetailPage() {
   if (!product) return null;
 
   const isWishlisted = product ? isInWishlist(product.id) : false;
+  const remainingStock = typeof product.stock_quantity === 'number'
+    ? Math.max(product.stock_quantity - cartQuantity, 0)
+    : undefined;
+  const isCartAtStockLimit = remainingStock !== undefined && remainingStock <= 0;
   const discountPercent = product.compare_at_price && product.compare_at_price > product.price
     ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
     : 0;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
+      
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 mb-16 md:mb-0">
         
@@ -262,10 +271,10 @@ export default function ProductDetailPage() {
                     >
                       <Minus className="h-4 w-4" />
                     </button>
-                    <span className="w-12 text-center font-medium">{product.stock_quantity === 0 ? 0 : quantity}</span>
+                      <span className="w-12 text-center font-medium">{product.stock_quantity === 0 ? 0 : quantity}</span>
                     <button 
                       onClick={() => handleQuantityChange('inc')}
-                      disabled={quantity >= product.stock_quantity || product.stock_quantity === 0}
+                      disabled={remainingStock !== undefined ? quantity >= remainingStock : product.stock_quantity === 0}
                       className="p-2 hover:bg-gray-100 disabled:opacity-50 transition"
                     >
                       <Plus className="h-4 w-4" />
@@ -276,11 +285,11 @@ export default function ProductDetailPage() {
                 <div className="flex gap-4 mt-2">
                   <button
                     onClick={handleAddToCart}
-                    disabled={product.stock_quantity === 0}
+                    disabled={product.stock_quantity === 0 || isCartAtStockLimit}
                     className="flex-1 bg-[#FF6B00] hover:bg-[#e56000] text-white py-3 px-6 rounded-lg font-bold flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="h-5 w-5" />
-                    {product.stock_quantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+                    {product.stock_quantity === 0 || isCartAtStockLimit ? 'Out of Stock' : 'Add to Cart'}
                   </button>
                   <button
                     onClick={handleWishlist}
@@ -290,6 +299,12 @@ export default function ProductDetailPage() {
                   </button>
                 </div>
               </div>
+
+              {remainingStock !== undefined && (
+                <p className={`text-sm font-semibold -mt-4 mb-4 ${remainingStock > 0 ? 'text-amber-600' : 'text-red-500'}`}>
+                  {remainingStock > 0 ? `${remainingStock} available` : 'Out of stock'}
+                </p>
+              )}
 
               {/* Features List */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
@@ -459,8 +474,8 @@ export default function ProductDetailPage() {
         />
       </main>
 
-      <Footer />
-      <BottomNav />
+      
+      
     </div>
   );
 }

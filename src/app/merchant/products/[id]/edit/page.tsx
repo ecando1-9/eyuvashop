@@ -12,6 +12,7 @@ import {
   AlertCircle, CheckCircle2, ArrowLeft, Plus
 } from "lucide-react";
 import Link from "next/link";
+import { sanitizeInput, allowOnlyDigits } from "@/lib/utils";
 
 export default function EditProductPage() {
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +27,7 @@ export default function EditProductPage() {
   const [store, setStore] = useState<any>(null);
   const [mProfile, setMProfile] = useState<any | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
+  const [homeSections, setHomeSections] = useState<any[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState("");
   const [loadingProduct, setLoadingProduct] = useState(true);
@@ -213,7 +215,9 @@ export default function EditProductPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    // OWASP: sanitize inputs
+    const sanitizedValue = sanitizeInput(value);
+    setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -406,9 +410,10 @@ export default function EditProductPage() {
               <input
                 type="text"
                 name="title"
+                maxLength={100}
                 value={formData.title}
                 onChange={handleChange}
-                placeholder="e.g. Sona Masoori Raw Rice 25kg"
+                placeholder="e.g. Sona Masoori Raw Rice 25kg (Max 100 chars)"
                 className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
               />
             </div>
@@ -418,9 +423,10 @@ export default function EditProductPage() {
               <input
                 type="text"
                 name="title_te"
+                maxLength={100}
                 value={formData.title_te}
                 onChange={handleChange}
-                placeholder="ఉదా: సోనా మసూరి బియ్యం 25 కేజీలు"
+                placeholder="ఉదా: సోనా మసూరి బియ్యం 25 కేజీలు (గరిష్టంగా 100 అక్షరాలు)"
                 className="w-full p-2.5 border border-orange-200 bg-orange-50/20 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
               />
             </div>
@@ -490,6 +496,7 @@ export default function EditProductPage() {
               <input
                 type="text"
                 name="brand"
+                maxLength={50}
                 value={formData.brand}
                 onChange={handleChange}
                 placeholder="e.g. Organic Heritage"
@@ -502,6 +509,7 @@ export default function EditProductPage() {
               <input
                 type="text"
                 name="sku"
+                maxLength={50}
                 value={formData.sku}
                 onChange={handleChange}
                 placeholder="Product SKU"
@@ -515,9 +523,10 @@ export default function EditProductPage() {
             <input
               type="text"
               name="short_description"
+              maxLength={200}
               value={formData.short_description}
               onChange={handleChange}
-              placeholder="Brief 1-sentence product summary"
+              placeholder="Brief 1-sentence product summary (Max 200 chars)"
               className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
             />
           </div>
@@ -527,9 +536,10 @@ export default function EditProductPage() {
             <textarea
               name="description"
               rows={4}
+              maxLength={2000}
               value={formData.description}
               onChange={handleChange}
-              placeholder="Detailed ingredients, features, specifications..."
+              placeholder="Detailed ingredients, features, specifications... (Max 2000 chars)"
               className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
             ></textarea>
           </div>
@@ -749,21 +759,18 @@ export default function EditProductPage() {
                     maxLength={50}
                     placeholder="e.g. Sarees, Sweets"
                     value={quickCategoryForm.name}
-                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, name: e.target.value })}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, name: sanitizeInput(e.target.value) })}
                     className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">
-                    Description <span className="text-gray-400 font-normal">(optional)</span>
-                  </label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Optional Description</label>
                   <textarea
-                    rows={2}
                     maxLength={200}
-                    placeholder="Short description..."
+                    rows={2}
                     value={quickCategoryForm.description}
-                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, description: e.target.value })}
+                    onChange={(e) => setQuickCategoryForm({ ...quickCategoryForm, description: sanitizeInput(e.target.value) })}
                     className="w-full p-2.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#FF6B00] outline-none"
                   />
                 </div>

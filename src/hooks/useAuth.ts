@@ -110,10 +110,11 @@ export function useAuth(): UseAuthReturn {
     }
   }, [supabase, fetchProfile]);
 
-  // signOut clears auth state only. The caller is responsible for navigation.
+  // signOut clears auth state and redirects to login
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setState({ user: null, profile: null, loading: false, unreadNotifications: 0 });
+    window.location.href = '/login';
   }, [supabase]);
 
   useEffect(() => {

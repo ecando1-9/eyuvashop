@@ -191,22 +191,23 @@ export default function MerchantProductsPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
+        {/* Data Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-500 text-sm">Loading products...</div>
+            <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+              <p className="font-medium text-sm">Loading catalog...</p>
+            </div>
           ) : filteredProducts.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase">
-                    <th className="p-4">Product Name (EN / TE)</th>
-                    <th className="p-4">SKU & Weight</th>
-                    <th className="p-4">Category</th>
-                    <th className="p-4">Price & History</th>
-                    <th className="p-4">Stock</th>
-                    <th className="p-4">Approval Status</th>
-                    <th className="p-4 text-right">Actions</th>
+                  <tr className="bg-gray-50/80 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    <th className="px-5 py-4 whitespace-nowrap">Product Details</th>
+                    <th className="px-5 py-4 whitespace-nowrap">Inventory</th>
+                    <th className="px-5 py-4 whitespace-nowrap">Pricing</th>
+                    <th className="px-5 py-4 whitespace-nowrap">Status</th>
+                    <th className="px-5 py-4 text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
@@ -215,68 +216,85 @@ export default function MerchantProductsPage() {
                     const displayWeight = product.parcel_weight_kg ? `${product.parcel_weight_kg} kg (Parcel)` : `${product.weight_kg || 0.5} kg`;
 
                     return (
-                      <tr key={product.id} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                      <tr key={product.id} className="hover:bg-gray-50/50 transition-colors group">
+                        <td className="px-5 py-4">
+                          <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gray-100 border border-gray-200/60 overflow-hidden flex-shrink-0 shadow-sm relative">
                               {primaryImg ? (
                                 <img src={primaryImg} alt="" className="w-full h-full object-cover" />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No img</div>
+                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-[10px] font-medium bg-gray-50">No img</div>
                               )}
                             </div>
-                            <div>
-                              <span className="font-semibold text-gray-900 line-clamp-1">{product.title}</span>
+                            <div className="space-y-1">
+                              <span className="font-bold text-gray-900 line-clamp-1 group-hover:text-[#FF6B00] transition-colors">{product.title}</span>
                               {product.title_te && (
-                                <span className="text-xs text-[#FF6B00] font-medium block">{product.title_te}</span>
+                                <span className="text-[11px] text-[#FF6B00] font-semibold block">{product.title_te}</span>
                               )}
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] text-gray-500 font-mono bg-gray-100 px-1.5 py-0.5 rounded-md border border-gray-200/60">
+                                  {product.sku || 'NO-SKU'}
+                                </span>
+                                <span className="text-[10px] text-gray-400 font-medium">
+                                  {product.category?.name || 'Uncategorized'}
+                                </span>
+                              </div>
                               {product.rejection_reason && (
-                                <p className="text-xs text-red-600 font-medium">Reason: {product.rejection_reason}</p>
+                                <p className="text-[11px] text-red-600 font-semibold bg-red-50 p-1.5 rounded-md inline-block mt-1">
+                                  Reason: {product.rejection_reason}
+                                </p>
                               )}
                             </div>
                           </div>
                         </td>
-                        <td className="p-4">
-                          <span className="text-gray-500 text-xs font-mono block">{product.sku || '-'}</span>
-                          <span className="text-[10px] text-gray-400 font-bold bg-gray-100 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                            {displayWeight}
-                          </span>
+                        <td className="px-5 py-4 align-top">
+                          <div className="space-y-1.5">
+                            <span className={`inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-md border ${
+                              product.stock_quantity <= 0 ? 'bg-red-50 text-red-700 border-red-200' :
+                              product.stock_quantity <= product.low_stock_threshold ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              {product.stock_quantity} in stock
+                            </span>
+                            <span className="block text-[11px] text-gray-500 font-medium ml-1">
+                              W: {displayWeight}
+                            </span>
+                          </div>
                         </td>
-                        <td className="p-4 text-gray-600 text-xs">{product.category?.name || 'Uncategorized'}</td>
-                        <td className="p-4">
+                        <td className="px-5 py-4 align-top">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-gray-900">{formatCurrency(product.price)}</span>
+                            <div className="flex flex-col">
+                              <span className="font-extrabold text-gray-900">{formatCurrency(product.price)}</span>
+                              {product.compare_at_price > product.price && (
+                                <span className="text-[11px] text-gray-400 line-through font-medium">
+                                  {formatCurrency(product.compare_at_price)}
+                                </span>
+                              )}
+                            </div>
                             <button
                               type="button"
                               onClick={() => setHistoryModal({ open: true, productId: product.id, title: product.title })}
-                              className="p-1 text-gray-400 hover:text-[#FF6B00] hover:bg-orange-50 rounded-md transition-colors"
+                              className="p-1.5 text-gray-400 hover:text-[#FF6B00] hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200"
                               title="View Price History"
                             >
                               <History className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
-                        <td className="p-4">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-                            product.stock_quantity <= 0 ? 'bg-red-100 text-red-700' :
-                            product.stock_quantity <= product.low_stock_threshold ? 'bg-amber-100 text-amber-700' :
-                            'bg-green-100 text-green-700'
-                          }`}>
-                            {product.stock_quantity} in stock
-                          </span>
+                        <td className="px-5 py-4 align-top">
+                          <div className="flex flex-col gap-1.5 items-start">
+                            <span className={`inline-flex items-center justify-center text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider border shadow-sm ${
+                              product.approval_status === 'approved' && product.status === 'published' ? 'bg-emerald-500 text-white border-emerald-600' :
+                              product.approval_status === 'pending' ? 'bg-amber-100 text-amber-800 border-amber-200' :
+                              product.approval_status === 'rejected' ? 'bg-red-100 text-red-800 border-red-200' :
+                              'bg-gray-100 text-gray-700 border-gray-200'
+                            }`}>
+                              {product.approval_status === 'approved' ? product.status : product.approval_status}
+                            </span>
+                          </div>
                         </td>
-                        <td className="p-4">
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                            product.approval_status === 'approved' && product.status === 'published' ? 'bg-emerald-100 text-emerald-800' :
-                            product.approval_status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                            product.approval_status === 'rejected' ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {product.approval_status === 'approved' ? product.status : product.approval_status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                        <td className="px-5 py-4 align-top text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             {/* Submit for approval — only show for draft products */}
                             {product.status === 'draft' && product.approval_status !== 'pending' && (
                               <button 

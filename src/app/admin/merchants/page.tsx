@@ -172,17 +172,23 @@ export default function AdminMerchantsPage() {
         .update({ priority: newPriority })
         .eq('id', selectedMerchant.id);
 
-      // Also update associated store priority
+      // Also update associated store priority (new field is priority_level)
       const storeObj = Array.isArray(selectedMerchant.store) ? selectedMerchant.store[0] : selectedMerchant.store;
       if (storeObj?.id) {
         await supabase
           .from('stores')
-          .update({ priority: newPriority })
+          .update({ priority_level: newPriority })
           .eq('id', storeObj.id);
+          
+        // Propagate store priority to all products for database-level sorting
+        await supabase
+          .from('products')
+          .update({ search_priority: newPriority })
+          .eq('store_id', storeObj.id);
       }
 
       // Update local state
-      setSelectedMerchant({ ...selectedMerchant, priority: newPriority });
+      setSelectedMerchant({ ...selectedMerchant, priority: newPriority, store: storeObj ? { ...storeObj, priority_level: newPriority } : undefined });
       await fetchMerchants();
       alert(`Priority updated to Level ${newPriority} successfully!`);
     } catch (err: any) {
@@ -375,14 +381,25 @@ export default function AdminMerchantsPage() {
                           </span>
                         </td>
                         <td className="p-4 text-slate-400">{new Date(m.created_at).toLocaleDateString()}</td>
-                        <td className="p-4 text-right">
-                          <button
-                            onClick={() => handleSelectMerchant(m)}
-                            className="px-3 py-1.5 bg-[#FF6B00] hover:bg-[#e05e00] text-white rounded-xl transition-colors font-bold text-xs inline-flex items-center gap-1.5 shadow-xs"
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Full Account
-                          </button>
-                        </td>
+                        
+                          <td className="p-4 text-right flex items-center justify-end gap-2">
+                            <a
+                              href={`/merchant?impersonate_merchant_id=${m.user_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-200 rounded-xl transition-colors font-bold text-xs inline-flex items-center gap-1.5 shadow-xs"
+                              title="Login as this merchant in a new tab"
+                            >
+                              <Store className="w-3.5 h-3.5" /> Portal
+                            </a>
+                            <button
+                              onClick={() => handleSelectMerchant(m)}
+                              className="px-3 py-1.5 bg-[#FF6B00] hover:bg-[#e05e00] text-white rounded-xl transition-colors font-bold text-xs inline-flex items-center gap-1.5 shadow-xs"
+                            >
+                              <Eye className="w-3.5 h-3.5" /> Manage
+                            </button>
+                          </td>
+
                       </tr>
                     );
                   })

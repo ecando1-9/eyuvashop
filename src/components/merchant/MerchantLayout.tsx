@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
   LayoutDashboard, Package, ShoppingBag, Store, Settings, LogOut, Menu, X,
   Plus, ChevronRight, ShieldCheck, Clock, Home, Layers, Grid, AlertTriangle, RefreshCw, CheckCircle2
@@ -23,6 +23,8 @@ interface MerchantLayoutProps {
 export function MerchantLayout({ children, title, subtitle, actions }: MerchantLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const impersonateMerchantId = searchParams.get('impersonate_merchant_id');
   const { user, profile, signOut, loading: authLoading } = useAuth();
 
   // Stable supabase client reference — does not change between renders,
@@ -40,22 +42,25 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
   const [resubmitSuccess, setResubmitSuccess] = useState(false);
 
   // Fetch merchant profile + store using selective column selects for performance
-  const loadMerchantInfo = useCallback(async (userId: string) => {
+  const loadMerchantInfo = useCallback(async (userId: string, overrideMerchantId?: string) => {
     try {
       const { data: mProfile } = await supabase
         .from('merchant_profiles')
         .select('id, business_name, business_phone, business_address, verification_status, can_publish, rejection_reason')
-        .eq('user_id', userId)
+        .eq(overrideMerchantId ? 'id' : 'user_id', overrideMerchantId || userId)
         .maybeSingle();
 
       if (mProfile) {
         setMerchantProfile(mProfile);
         const { data: storeData } = await supabase
           .from('stores')
-          .select('id, name, city, phone, email')
+          .select('id, name, city, phone, email, logo_url')
           .eq('merchant_id', mProfile.id)
           .maybeSingle();
-        if (storeData) setStore(storeData);
+          
+        if (storeData) {
+          setStore(storeData);
+        }
       }
     } catch (err) {
       console.error("Error loading merchant layout profile:", err);
@@ -71,8 +76,13 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
       return;
     }
     setLoadingMerchant(true);
-    loadMerchantInfo(user.id);
-  }, [user?.id, authLoading, loadMerchantInfo]);
+    const isAdmin = profile?.role === 'admin' || user?.user_metadata?.role === 'admin';
+    if (isAdmin && impersonateMerchantId) {
+      loadMerchantInfo(user.id, impersonateMerchantId);
+    } else {
+      loadMerchantInfo(user.id);
+    }
+  }, [user?.id, authLoading, loadMerchantInfo, profile, impersonateMerchantId]);
 
   // Approval status polling — re-fetch merchant profile every 30 seconds so admin
   // approval/rejection reflects on the merchant side without requiring a full page reload
@@ -130,9 +140,9 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
     }
   };
 
-  const businessName = merchantProfile?.business_name || store?.name || profile?.full_name || "Merchant Store";
+  const businessName = store?.name || merchantProfile?.business_name || profile?.full_name || user?.email?.split('@')[0]?.replace(/[0-9]/g, '') || "Merchant Store";
   const verificationStatus = merchantProfile?.verification_status || 'pending';
-  const userAvatar = profile?.avatar_url || user?.user_metadata?.avatar_url || null;
+  const userAvatar = store?.logo_url || profile?.avatar_url || user?.user_metadata?.avatar_url || null;
 
   const isRouteActive = (href: string) => {
     if (href === '/merchant') {
@@ -155,7 +165,6 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
     { label: 'Orders', href: '/merchant/orders', icon: ShoppingBag },
     { label: 'Inventory', href: '/merchant/inventory', icon: Layers },
     { label: 'Store Profile', href: '/merchant/store', icon: Store },
-    { label: 'Account Settings', href: '/account/settings', icon: Settings },
   ];
 
 
@@ -185,9 +194,16 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
                   <span className="text-[#0A234A] text-2xl leading-none">S</span>
                   <span className="text-[#0A234A]">hop</span>
                 </span>
-                <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-2 py-0.5 rounded-full uppercase font-black tracking-wider border border-orange-200">
-                  Seller Hub
-                </span>
+                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
+                  <span className="text-[10px] bg-orange-100 text-[#FF6B00] px-2 py-0.5 rounded-full uppercase font-black tracking-wider border border-orange-200">
+                    Seller Hub
+                  </span>
+                  {businessName && (
+                    <span className="text-[11px] font-bold text-gray-500 max-w-[120px] truncate hidden lg:block border-l border-gray-300 pl-2">
+                      {businessName}
+                    </span>
+                  )}
+                </div>
               </div>
             </Link>
           </div>
@@ -284,8 +300,12 @@ export function MerchantLayout({ children, title, subtitle, actions }: MerchantL
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                    {store?.name?.[0] || businessName[0] || 'S'}
+                  <div className="w-10 h-10 rounded-lg bg-[#FF6B00] text-white flex items-center justify-center font-bold text-lg shadow-sm overflow-hidden border border-orange-200">
+                    {store?.logo_url ? (
+                      <img src={store.logo_url} alt={businessName} className="w-full h-full object-cover" />
+                    ) : (
+                      store?.name?.[0] || businessName[0] || 'S'
+                    )}
                   </div>
                   <div className="overflow-hidden">
                     <h3 className="font-bold text-gray-900 text-sm truncate">{businessName}</h3>

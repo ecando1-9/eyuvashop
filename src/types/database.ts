@@ -17,6 +17,8 @@ export interface UserProfile {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  linked_category_id?: string | null;
+  category?: Category;
   deleted_at?: string | null;
 }
 
@@ -54,6 +56,7 @@ export interface Store {
   status: StoreStatus;
   is_active: boolean;
   is_featured: boolean;
+  priority_level: number;
   priority?: number;
   rating: number;
   followers_count: number;
@@ -112,6 +115,7 @@ export interface Product {
   updated_at: string;
   deleted_at: string | null;
   images?: ProductImage[];
+  labels?: { label: ProductLabel }[];
   store?: Partial<Store>;
 }
 
@@ -296,4 +300,48 @@ export interface AdminDashboardStats extends DashboardStats {
   totalMerchants: number;
   pendingMerchants: number;
   totalStores: number;
+}
+
+export interface HomeSection {
+  id: string;
+  title: string;
+  description: string | null;
+  is_active: boolean;
+  display_order: number;
+  created_at: string;
+  updated_at: string;
+  products?: Product[];
+}
+
+export interface HomeSectionProduct {
+  section_id: string;
+  product_id: string;
+  display_order: number;
+  created_at: string;
+}
+
+
+export interface ProductLabel {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface ProductLabelAssignment {
+  product_id: string;
+  label_id: string;
+  created_at: string;
+  label?: ProductLabel;
+}
+
+export interface UserEvent {
+  id: string;
+  user_id?: string | null;
+  session_id?: string | null;
+  event_type: 'view_product' | 'search';
+  target_id?: string | null;
+  search_term?: string | null;
+  created_at: string;
+  product?: Product;
 }

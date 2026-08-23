@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/utils";
 import { 
   Search, CheckCircle, XCircle, Eye, AlertCircle, Package, Archive,
-  X, Image as ImageIcon, Store, Tag, Filter, Check, Flame, Award, Sparkles, Save
+  X, Image as ImageIcon, Store, Tag, Layers, Filter, Check, Flame, Award, Sparkles, Save
 } from "lucide-react";
 import { AdminLayout } from "@/components/admin/AdminLayout";
 
@@ -17,6 +17,10 @@ export default function AdminProductsPage() {
   const supabase = createClient();
 
   const [products, setProducts] = useState<any[]>([]);
+  const [allLabels, setAllLabels] = useState<any[]>([]);
+  const [allStores, setAllStores] = useState<any[]>([]);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [storeFilter, setStoreFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Pending Approval");
   const [search, setSearch] = useState("");
@@ -28,6 +32,9 @@ export default function AdminProductsPage() {
   const [isTrendingToggle, setIsTrendingToggle] = useState(false);
   const [isFeaturedToggle, setIsFeaturedToggle] = useState(false);
   const [savingRankings, setSavingRankings] = useState(false);
+  const [activeLabelIds, setActiveLabelIds] = useState<string[]>([]);
+  const [allHomeSections, setAllHomeSections] = useState<any[]>([]);
+  const [activeSectionIds, setActiveSectionIds] = useState<string[]>([]);
 
   // Rejection modal
   const [rejectionReason, setRejectionReason] = useState("");
@@ -46,12 +53,20 @@ export default function AdminProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
+      const { data: labelsData } = await supabase.from('product_labels').select('*');
+      if (labelsData) setAllLabels(labelsData);
+      const { data: storesData } = await supabase.from('stores').select('id, name').order('name');
+        if (storesData) setAllStores(storesData);
+        const { data: sectionsData } = await supabase.from('home_sections').select('*');
+        if (sectionsData) setAllHomeSections(sectionsData);
+
       const { data, error } = await supabase.from('products')
         .select(`
           *,
           images:product_images(url, is_primary, display_order),
           store:stores(name, slug, logo_url, priority),
-          category:categories(name)
+          category:categories(name),
+            label_assignments:product_label_assignments(label:product_labels(*))
         `)
         .is('deleted_at', null)
         .order('search_priority', { ascending: false, nullsFirst: false })
@@ -104,9 +119,24 @@ export default function AdminProductsPage() {
       };
 
       const { error } = await supabase
-        .from('products')
-        .update(payload)
-        .eq('id', selectedProduct.id);
+          .from('products')
+          .update(payload)
+          .eq('id', selectedProduct.id);
+
+        if (!error) {
+          // Sync labels
+          await supabase.from('product_label_assignments').delete().eq('product_id', selectedProduct.id);
+          if (activeLabelIds.length > 0) {
+            const inserts = activeLabelIds.map(label_id => ({ product_id: selectedProduct.id, label_id }));
+            await supabase.from('product_label_assignments').insert(inserts);
+          }
+          
+          await supabase.from('home_section_products').delete().eq('product_id', selectedProduct.id);
+          if (activeSectionIds.length > 0) {
+            const secInserts = activeSectionIds.map(section_id => ({ product_id: selectedProduct.id, section_id }));
+            await supabase.from('home_section_products').insert(secInserts);
+          }
+        }
 
       if (error) throw error;
 
@@ -146,7 +176,7 @@ export default function AdminProductsPage() {
   const filteredProducts = products.filter(product => {
     if (activeTab === "Pending Approval" && product.approval_status !== "pending") return false;
     if (activeTab === "Published" && (product.status !== "published" || product.approval_status !== "approved")) return false;
-    if (activeTab === "Trending & Featured" && !product.is_trending && !product.is_featured) return false;
+    if (activeTab === "Trending & Featured" && !product.is_trending && !product.is_featured && (product.search_priority || 0) === 0) return false;
     if (activeTab === "Rejected" && product.approval_status !== "rejected") return false;
     if (activeTab === "Draft" && product.status !== "draft") return false;
     if (activeTab === "Archived" && product.status !== "archived") return false;
@@ -158,6 +188,15 @@ export default function AdminProductsPage() {
       const matchSku = product.sku?.toLowerCase().includes(q);
       const matchStore = product.store?.name?.toLowerCase().includes(q);
       if (!matchTitle && !matchTelugu && !matchSku && !matchStore) return false;
+    }
+
+    if (storeFilter !== "" && product.store_id !== storeFilter) {
+      return false;
+    }
+
+    if (selectedLabels.length > 0) {
+      const hasLabel = product.label_assignments && product.label_assignments.some((la: any) => selectedLabels.includes(la.label?.id));
+      if (!hasLabel) return false;
     }
 
     return true;
@@ -196,16 +235,44 @@ export default function AdminProductsPage() {
               ))}
             </div>
 
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search products, SKU, store..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
-              />
-            </div>
+            
+              <div className="flex items-center gap-2 w-full md:w-auto flex-wrap md:flex-nowrap">
+                <div className="relative w-full md:w-48">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search products, SKU..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                  />
+                </div>
+                <div className="w-full md:w-36">
+                  <select
+                    value={storeFilter}
+                    onChange={(e) => setStoreFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                  >
+                    <option value="">All Stores</option>
+                    {allStores.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-full md:w-36">
+                  <select
+                    value={selectedLabels.length > 0 ? selectedLabels[0] : ''}
+                    onChange={(e) => setSelectedLabels(e.target.value ? [e.target.value] : [])}
+                    className="w-full px-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF6B00]"
+                  >
+                    <option value="">All Labels</option>
+                    {allLabels.map(l => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
           </div>
 
           {/* Product Table */}
@@ -364,37 +431,7 @@ export default function AdminProductsPage() {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Search Priority (0 - 999)
-                      </label>
-                      <p className="text-[10px] text-slate-500 mb-1.5">Higher priority appears first when users search for this or competing products.</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={999}
-                        value={searchPriorityInput}
-                        onChange={(e) => setSearchPriorityInput(parseInt(e.target.value) || 0)}
-                        className="w-full p-2 border border-slate-300 rounded-xl font-bold text-xs bg-white focus:ring-2 focus:ring-[#FF6B00] outline-none"
-                      />
-                    </div>
 
-                    <div>
-                      <label className="block font-bold text-slate-700 mb-1">
-                        Trending Display Priority (0 - 999)
-                      </label>
-                      <p className="text-[10px] text-slate-500 mb-1.5">Sort order in the Homepage Trending Carousel.</p>
-                      <input
-                        type="number"
-                        min={0}
-                        max={999}
-                        value={trendingPriorityInput}
-                        onChange={(e) => setTrendingPriorityInput(parseInt(e.target.value) || 0)}
-                        className="w-full p-2 border border-slate-300 rounded-xl font-bold text-xs bg-white focus:ring-2 focus:ring-[#FF6B00] outline-none"
-                      />
-                    </div>
-                  </div>
 
                   <div className="flex items-center gap-6 pt-1">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -416,10 +453,34 @@ export default function AdminProductsPage() {
                       />
                       <span className="font-bold text-slate-800 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5 text-purple-500" /> Show in Featured Section</span>
                     </label>
-                  </div>
-                </div>
+                                    </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl">
+                  </div>
+
+                  {/* Assign to Manual Home Sections */}
+                  <div className="bg-slate-50 p-4 border-t border-slate-100">
+                    <h5 className="font-extrabold text-xs text-slate-900 mb-2 flex items-center gap-1"><Layers className="w-4 h-4 text-slate-400" /> Assign to Home Sections</h5>
+                    <p className="text-[10px] text-slate-500 mb-3">Add this product to manual collections on the Home Page (e.g., "For Women", "Skin Care Essentials").</p>
+                    <div className="flex flex-col gap-2">
+                      {allHomeSections.map(section => {
+                        const isSelected = activeSectionIds.includes(section.id);
+                        return (
+                          <label key={section.id} className="flex items-center gap-2 cursor-pointer p-2 rounded-xl border transition-all hover:bg-white" style={{ borderColor: isSelected ? '#FF6B00' : '#e2e8f0', backgroundColor: isSelected ? '#fff7ed' : 'transparent' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => setActiveSectionIds(prev => e.target.checked ? [...prev, section.id] : prev.filter(id => id !== section.id))}
+                              className="rounded text-[#FF6B00] focus:ring-[#FF6B00]"
+                            />
+                            <span className="font-bold text-xs text-slate-800">{section.title}</span>
+                          </label>
+                        );
+                      })}
+                      {allHomeSections.length === 0 && <span className="text-xs text-slate-400 italic">No Home Sections created. Go to the Home Sections tab to create some.</span>}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3 rounded-xl">
                   <div>
                     <span className="text-slate-400 block font-semibold">Selling Price</span>
                     <span className="font-black text-slate-900 text-sm">{formatCurrency(selectedProduct.price)}</span>

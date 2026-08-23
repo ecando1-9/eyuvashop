@@ -1,8 +1,5 @@
 'use client';
 
-import { Header } from '@/components/common/Header';
-import { Footer } from '@/components/common/Footer';
-import { BottomNav } from '@/components/common/BottomNav';
 import { AccountSidebar } from '@/components/account/AccountSidebar';
 
 import Link from 'next/link';
@@ -40,8 +37,7 @@ export function AccountLayoutClient({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
-      <Header />
-
+      
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
         {/* Mobile Account Navigation Pill Bar */}
         <div className="md:hidden mb-5 -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center gap-2 pb-2">
@@ -78,8 +74,6 @@ export function AccountLayoutClient({ children }: { children: React.ReactNode })
         </div>
       </main>
 
-      <Footer />
-      <BottomNav />
-    </div>
+                </div>
   );
 }

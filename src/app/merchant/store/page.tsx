@@ -30,6 +30,7 @@ export default function MerchantStorePage() {
     city: "",
     state: "",
     pin_code: "",
+    address: "",
     logo_url: "",
     banner_url: ""
   });
@@ -71,6 +72,7 @@ export default function MerchantStorePage() {
             city: storeData.city || "",
             state: storeData.state || "",
             pin_code: storeData.pin_code || "",
+            address: mProfile.business_address || "",
             logo_url: storeData.logo_url || "",
             banner_url: storeData.banner_url || ""
           });
@@ -90,7 +92,32 @@ export default function MerchantStorePage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    // Basic sanitization
+    let cleanValue = value.replace(/<[^>]*>?/gm, '');
+    if (name === 'phone') cleanValue = cleanValue.replace(/\D/g, '').slice(0, 10);
+    setFormData(prev => ({ ...prev, [name]: cleanValue }));
+  };
+
+  const handlePincodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setFormData(prev => ({ ...prev, pin_code: val }));
+    
+    if (val.length === 6) {
+      try {
+        const res = await fetch(`https://api.postalpincode.in/pincode/${val}`);
+        const data = await res.json();
+        if (data && data[0]?.Status === 'Success') {
+          const postOffice = data[0].PostOffice[0];
+          setFormData(prev => ({
+            ...prev,
+            city: postOffice.District,
+            state: postOffice.State
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch pincode details", err);
+      }
+    }
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +160,13 @@ export default function MerchantStorePage() {
           .eq("id", store.id);
           
         if (error) throw error;
+        
+        // Also sync the name to merchant profile
+        await supabase
+          .from("merchant_profiles")
+          .update({ business_name: formData.name, business_address: formData.address })
+          .eq("id", merchantProfile.id);
+          
         setMessage({ type: "success", text: "Store profile updated successfully." });
       } else {
         const { data: newStore, error } = await supabase
@@ -146,6 +180,13 @@ export default function MerchantStorePage() {
           .single();
           
         if (error) throw error;
+        
+        // Also sync the name to merchant profile
+        await supabase
+          .from("merchant_profiles")
+          .update({ business_name: formData.name, business_address: formData.address })
+          .eq("id", merchantProfile.id);
+
         setStore(newStore);
         setMessage({ type: "success", text: "Store profile created successfully." });
       }
@@ -355,65 +396,77 @@ export default function MerchantStorePage() {
 
             {activeTab === 'contact' && (
               <div className="space-y-4 max-w-2xl">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Contact Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Contact Email</label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
+                      />
+                    </div>
+  
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Contact Phone</label>
+                      <input
+                        type="text"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">Contact Phone</label>
-                    <input
-                      type="text"
-                      name="phone"
-                      value={formData.phone}
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Full Store Address</label>
+                    <textarea
+                      name="address"
+                      rows={2}
+                      value={formData.address}
                       onChange={handleInputChange}
+                      placeholder="Enter full physical address of the store..."
                       className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
                     />
                   </div>
-                </div>
+  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">PIN Code</label>
+                      <input
+                        type="text"
+                        name="pin_code"
+                        value={formData.pin_code}
+                        onChange={handlePincodeChange}
+                        placeholder="e.g. 520001"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">City</label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">State</label>
-                    <input
-                      type="text"
-                      name="state"
-                      value={formData.state}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1">PIN Code</label>
-                    <input
-                      type="text"
-                      name="pin_code"
-                      value={formData.pin_code}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00]"
-                    />
-                  </div>
-                </div>
-              </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">City / Town</label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={formData.city}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00] bg-gray-50"
+                      />
+                    </div>
+  
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">State</label>
+                      <input
+                        type="text"
+                        name="state"
+                        value={formData.state}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF6B00] bg-gray-50"
+                      />
+                    </div>
+                  </div></div>
             )}
           </div>
         </div>
